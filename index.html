@@ -222,6 +222,11 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
 }
 @media(prefers-reduced-motion:reduce){.intro-watching i{animation:none}}
 
+
+/* Alternative answers are visible only after submission. */
+.other-routes{margin-top:12px;border-top:1px solid var(--line);padding-top:7px}
+.other-routes summary{cursor:pointer;font-size:12px;color:var(--soft);padding:8px 0}
+.other-routes p{font-size:12px;line-height:1.6;margin:6px 0}
 </style>
 </head>
 <body><svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="ui-ball" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M5 5c6 3 6 11 0 14M19 5c-6 3-6 11 0 14m-11-9 3-1m-2 5 3 1m7-5-3-1m2 5-3 1"></path></symbol><symbol id="ui-chart" viewbox="0 0 24 24"><path d="M4 4v16h17M8 15v-4m5 4V7m5 8v-6"></path></symbol><symbol id="ui-help" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2m0 3h.01"></path></symbol><symbol id="ui-star" viewbox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9Z"></path></symbol><symbol id="ui-check" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m7 12 3 3 7-7"></path></symbol><symbol id="ui-play" viewbox="0 0 24 24"><path d="m8 4 12 8-12 8Z"></path></symbol><symbol id="ui-reset" viewbox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 7M3 4v6h6"></path></symbol><symbol id="ui-arrow" viewbox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"></path></symbol><symbol id="ui-home" viewbox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v11h12V9m-9 11v-7h6v7"></path></symbol><symbol id="ui-person" viewbox="0 0 24 24"><circle cx="12" cy="7" r="3"></circle><path d="M5 21v-3a7 7 0 0 1 14 0v3"></path></symbol><symbol id="ui-group" viewbox="0 0 24 24"><circle cx="8" cy="7" r="3"></circle><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-17a3 3 0 0 1 0 6m2 4a6 6 0 0 1 4 6"></path></symbol><symbol id="ui-settings" viewbox="0 0 24 24"><path d="M4 7h16M4 17h16"></path><circle cx="9" cy="7" fill="#fffefb" r="3"></circle><circle cx="15" cy="17" fill="#fffefb" r="3"></circle></symbol></defs></svg>
@@ -427,7 +432,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
       popup:['CATCH','CATCH_THROW','FORCE','TAG','BACKUP','HOLD']
     }[s.cat])])];
     // Fixed order does not leak the reference answer.
-    s.actionOptions=Object.keys(ACT).filter(a=>s.actionOptions.includes(a));
+    s.actionOptions=Object.keys(ACT).filter(a=>s.actionOptions.includes(a)||a==='COVER'||(['fly'].includes(s.cat)&&a==='FIELD_THROW'));
     scenes.push(s);
   }
   // 1. Routine grounders: outs and force states change the actual play.
@@ -593,18 +598,235 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   function zoneXY(s,zoneId,pos){return zoneId==='HOLD'?copyXY((s.startOverrides&&s.startOverrides[pos])||START[pos]):s.zones[zoneId]?copyXY(s.zones[zoneId].xy):null;}
   function normalizeTarget(s,target,plans){
     if(!target||!target.startsWith('PLAYER_'))return target||null;
-    const p=target.slice(7);return plans&&plans[p]&&plans[p].move || s.roles[p]&&s.roles[p].move || 'PLAYER_'+p;
+    const p=target.slice(7);return plans&&plans[p]&&plans[p].move || 'PLAYER_'+p;
+  }
+  /* V4.4: evaluate a coherent play, not one answer key.
+   * Force / retouch concepts: MLB official glossary, checked 2026-09-18.
+   * The diagram does not measure throwing speed or runner arrival time.
+   * A legal alternative is conditional on completing the described play in time.
+   * Reference scenes are never rewritten; alternatives live in a separate cache.
+   */
+  const solutionCache = new WeakMap();
+  const clonePlan = v => JSON.parse(JSON.stringify(v));
+  const planOf = (move,action,target=null,note='') => ({move,action,target,note,alternatives:[]});
+  const actualOutCount = s => s.outs + ((s.cat==='force'||s.infieldFly)?1:0);
+  function forceTargets(s){
+    // A loaded scoreboard alone is not enough: a fly, steal, wild pitch,
+    // or an already retired batter does not create these force outs.
+    if(!['ground','bunt','infieldin'].includes(s.cat))return [];
+    const out=['FIRST'];
+    if(s.mask&1)out.push('SECOND');
+    if((s.mask&3)===3)out.push('THIRD');
+    if(s.mask===7)out.push('HOME');
+    return out;
+  }
+  function defaultReceiver(s,base){
+    const existing=s.chain.find(c=>c.to===base);
+    if(existing&&existing.toPos!==s.main)return existing.toPos;
+    if(base==='FIRST')return s.main==='1B'?(s.cat==='bunt'?'2B':'P'):'1B';
+    if(base==='SECOND')return ['2B','P','1B'].includes(s.main)?'SS':'2B';
+    if(base==='THIRD')return s.main==='3B'?'SS':'3B';
+    if(base==='HOME')return s.main==='C'?'P':'C';
+    return null;
+  }
+  function solutionVariants(s){
+    if(solutionCache.has(s))return solutionCache.get(s);
+    const list=[];
+    const add=v=>{
+      // Never keep an impossible receiver, self-pass, or discontinuous chain.
+      if(v.chain.some((c,i)=>!v.roles[c.by]||!v.roles[c.toPos]||c.by===c.toPos||
+        v.roles[c.by].move!==c.from||v.roles[c.toPos].move!==c.to||
+        (i&&v.chain[i-1].toPos!==c.by)))return;
+      v.order=list.length;list.push(v);
+    };
+    const base=()=>({id:'reference',kind:'reference',note:'',roles:clonePlan(s.roles),chain:clonePlan(s.chain)});
+    add(base());
+    function quietReceivers(v){
+      // A fielder still covering an unused bag does not claim an out there.
+      for(const [p,r] of Object.entries(v.roles)){
+        if(p!==s.main&&['FORCE','TAG','PIVOT','APPEAL'].includes(r.action))
+          v.roles[p]=planOf(r.move,'COVER',null,'守住这个垒接应；球没传到这里，不用做出局动作。');
+      }
+    }
+    function forceRoute(baseId,double=false){
+      let receiver=defaultReceiver(s,baseId);
+      if(!receiver)return;
+      const first=defaultReceiver(s,'FIRST');
+      const receiverOptions=[receiver];
+      // Either middle infielder can cover second when neither fields this ball.
+      if(baseId==='SECOND')for(const p of ['SS','2B'])
+        if(p!==s.main&&p!==first&&!receiverOptions.includes(p))receiverOptions.push(p);
+      for(const who of receiverOptions){
+        if(double&&who===first)continue;
+        const v=base();v.id=`force-${baseId}-${who}${double?'-dp':''}`;v.kind='force';quietReceivers(v);
+        const label=BASES[baseId].label,ending=s.outs===2;
+        v.note=double?
+          `先在${label}抓一个，再传一垒；两次都赶在跑者前面，双杀成立。`:
+          ending?`传${label}也可以。球先到、队友接稳踩垒，就是第三个出局。`:
+          `先在${label}拿一个出局也可以；有时间，再争取双杀。`;
+        v.roles[s.main]=planOf('BALL','FIELD_THROW',baseId,v.note);
+        v.roles[who]=planOf(baseId,double?'PIVOT':'FORCE',double?'FIRST':null,
+          double?`接球踩${label}，再传一垒。`:`在${label}接球踩垒，球要先到。`);
+        v.chain=[{from:'BALL',to:baseId,by:s.main,toPos:who,text:`${s.main} 传${label}，${who} 接球踩垒`}];
+        if(double){
+          v.roles[first]=planOf('FIRST','FORCE',null,'接回传踩一垒，完成第二个出局。');
+          v.chain.push({from:baseId,to:'FIRST',by:who,toPos:first,text:`${who} 再传一垒，${first} 接球踩垒`});
+        }
+        add(v);
+      }
+    }
+    if(['ground','bunt'].includes(s.cat)){
+      for(const b of forceTargets(s)){
+        forceRoute(b,false);
+        // Ordinary grounders can support multiple DP routes. A slow bunt
+        // does not imply enough time for a second out, so no automatic bunt DP.
+        if(s.cat==='ground'&&s.outs<2&&b!=='FIRST')forceRoute(b,true);
+      }
+    }
+    if(s.cat==='infieldin'){
+      // With one out, completing a force DP can also end the inning.
+      // With no outs, taking only an out elsewhere does not stop the run.
+      if(s.outs===1)for(const b of forceTargets(s))if(b!=='FIRST')forceRoute(b,true);
+    }
+    if(['single','gap','fly'].includes(s.cat)&&s.chain.length){
+      // The user has not been given a mandatory cutoff system. Keep the
+      // target runner the same, but allow a coherent shorter return route.
+      const n=s.chain.length;
+      for(let mask=0;mask<(1<<(n-1));mask++){
+        if(mask===(1<<(n-1))-1)continue;
+        const v=base();v.id=`return-${mask}`;v.kind='return';
+        const nodes=[{pos:s.main,zone:s.roles[s.main].move}];
+        for(let i=0;i<n-1;i++)if(mask&(1<<i))nodes.push({pos:s.chain[i].toPos,zone:s.chain[i].to});
+        nodes.push({pos:s.chain[n-1].toPos,zone:s.chain[n-1].to});
+        const used=new Set(nodes.map(x=>x.pos));
+        for(const [p,r] of Object.entries(v.roles))if(r.action==='RELAY'&&!used.has(p)){
+          v.roles[p]=planOf(r.move,'COVER',null,'球直接越过这个位置，你仍可留在传球线上接应。');
+          // Preparing a relay is harmless if the ball is thrown past you.
+          v.roles[p].optionalPlan=clonePlan(r);
+        }
+        v.note='目标跑者没变。传球距离够、球到得及时，这条路线也可以；不必照着固定顺序打截。';
+        v.chain=[];
+        for(let i=0;i<nodes.length-1;i++){
+          const from=nodes[i],to=nodes[i+1],action=i===0?s.roles[s.main].action:'RELAY';
+          v.roles[from.pos]=planOf(from.zone,action,to.zone,v.note);
+          v.chain.push({from:from.zone,to:to.zone,by:from.pos,toPos:to.pos,
+            text:`${from.pos} ${i===0&&action==='CATCH_THROW'?'接杀后':''}传${BASES[to.zone]?BASES[to.zone].label:to.pos}`});
+        }
+        add(v);
+      }
+    }
+    // A clean catch is already an out. Not taking the possible return throw
+    // is a missed opportunity, not the same as dropping the ball.
+    if(s.cat==='line'){
+      const v=base();v.id='catch-only';v.kind='catch';v.chain=[];quietReceivers(v);
+      v.note='先把平飞接住，已经拿到一个出局；一垒跑者离垒远，回传还能争取再抓一个。';
+      v.roles[s.main]=planOf('BALL','CATCH',null,v.note);add(v);
+    }
+    // If runners are stationary, an ordinary return to an infielder is fine.
+    const settled=(['fly','popup'].includes(s.cat)&&!s.chain.length)||(s.cat==='single'&&s.mask===0);
+    if(settled){
+      for(const b of ['FIRST','SECOND','THIRD','HOME']){
+        const v=base(),who=defaultReceiver(s,b);if(!who||who===s.main)continue;
+        v.id='control-'+b;v.kind='control';quietReceivers(v);
+        v.note=actualOutCount(s)===2&&s.kind==='fly'?'接杀已经结束半局，之后正常回传不影响这个出局。':'跑者没有再跑，接稳后回传给内野队友也可以。';
+        for(const [p,r] of Object.entries(v.roles))if(r.action==='RELAY'){
+          v.roles[p]=planOf(r.move,'COVER',null,'留在传球线上接应。');v.roles[p].optionalPlan=clonePlan(r);
+        }
+        v.roles[s.main]=planOf('BALL',s.kind==='fly'?'CATCH_THROW':'FIELD_THROW',b,v.note);
+        v.roles[who]=planOf(b,'COVER',null,'接稳回传；现在没有要在这里抓的跑者。');
+        v.chain=[{from:'BALL',to:b,by:s.main,toPos:who,text:`${s.main} ${s.kind==='fly'?'接杀后':''}回传${BASES[b].label}，${who} 接稳球`}];add(v);
+      }
+    }
+    solutionCache.set(s,list);return list;
+  }
+  function samePosition(s,a,b,pos){
+    if(a===b)return true;
+    const x=zoneXY(s,a,pos),y=zoneXY(s,b,pos);
+    // Only aliases for substantially the same point; never merge distinct
+    // bags, a bag with its backup, or the first and second cutoff roles.
+    if(!x||!y)return false;
+    if(a==='HOLD'||b==='HOLD')return Math.hypot(x[0]-y[0],x[1]-y[1])<=24;
+    if((a==='BALL'||b==='BALL')&&(BASES[a]||BASES[b]))return Math.hypot(x[0]-y[0],x[1]-y[1])<=12;
+    return false;
+  }
+  function solutionTarget(s,v,target,plans){
+    if(!target||typeof target!=='string')return null;
+    if(!target.startsWith('PLAYER_'))return target;
+    const p=target.slice(7);
+    return plans&&plans[p]&&plans[p].move||v.roles[p]&&v.roles[p].move||null;
+  }
+  function evaluateRole(s,v,pos,answer,plans){
+    const original=s.roles[pos],r=v.roles[pos]||original;
+    if(!r)return {ok:false,incomplete:true,move:false,action:false,target:false,actual:{},reference:planOf('HOLD','HOLD')};
+    const a=answer||{},actionKnown=!!ACT[a.action];
+    const target=actionKnown&&ACT[a.action].target?solutionTarget(s,v,a.target,plans):null;
+    const actual={move:a.move||null,action:a.action||null,target};
+    let move=samePosition(s,actual.move,r.move,pos),action=actual.action===r.action,
+      targetOK=!ACT[r.action].target||target===r.target,note=r.note||'',functional=false;
+    const isOutgoing=v.chain.some(c=>c.by===pos);
+    // Both labels describe receiving a pass and throwing it onward. They do
+    // not substitute for a catch, tag, force out, or double-play pivot.
+    if(!action&&['RELAY','FIELD_THROW'].includes(r.action)&&['RELAY','FIELD_THROW'].includes(actual.action)&&
+       (pos!==s.main||s.kind==='held')&&isOutgoing){action=true;functional=true;note='这两个选项都是接稳来球再传，处理方式相同。';}
+    if(r.action==='FORCE'&&actual.action==='TAG'){
+      action=true;functional=true;note='有封杀关系时，拿球触杀跑者也能出局；踩垒通常更快。';
+    }
+    // Once the third force out is completed, an extra return throw does not
+    // undo it. Do not invent a fourth out or show a double-play animation.
+    if(r.action==='FORCE'&&actual.action==='PIVOT'&&s.outs===2&&BASES[target]){
+      action=true;targetOK=true;functional=true;note='踩垒已拿到第三个出局。后续回传不影响判对，但不用再做双杀。';
+    }
+    if(r.optionalPlan){const opt=r.optionalPlan;
+      if(samePosition(s,actual.move,opt.move,pos)&&(['RELAY','FIELD_THROW'].includes(actual.action)&&target===opt.target)){
+        action=true;targetOK=true;functional=true;note=r.note;
+      }
+    }
+    if(a.target&&a.target.startsWith('PLAYER_')&&actionKnown&&ACT[a.action].target){
+      const who=a.target.slice(7),edge=v.chain.find(c=>c.by===pos);
+      // Throwing to a player is not the same as throwing toward a bag.
+      if(who===pos||!edge||edge.toPos!==who)targetOK=false;
+    }
+    const incomplete=!complete(a),ok=move&&action&&targetOK&&!incomplete;
+    const changed=!original||!samePosition(s,actual.move,original.move,pos)||actual.action!==original.action||
+      (ACT[actual.action]&&ACT[actual.action].target&&target!==original.target);
+    const reference=clonePlan(r);
+    // Explain the accepted actual action rather than 'correcting' a synonym.
+    if(ok){reference.move=actual.move;reference.action=actual.action;reference.target=target;reference.note=note||v.note;}
+    return {ok,incomplete,move,action,target:targetOK,actual,reference,
+      alternative:ok&&(changed||functional),note:ok?(note||v.note):'',solutionId:v.id};
+  }
+  function evaluate(s,plans,positions){
+    plans=plans||{};positions=(positions||Object.keys(plans)).filter(p=>s.roles[p]);
+    if(!positions.length)return {ok:false,grades:{},solution:solutionVariants(s)[0]};
+    let rows=solutionVariants(s).map(v=>{
+      const grades=Object.fromEntries(positions.map(p=>[p,evaluateRole(s,v,p,plans[p],plans)]));
+      const values=Object.values(grades);
+      return {grades,solution:v,ok:values.every(g=>g.ok),score:values.reduce((n,g)=>n+(g.ok?12:0)+(+g.move)+(+g.action)+(+g.target),0)};
+    });
+    // In a team answer, prefer the valid throw the user actually chose.
+    // Then check that the other controlled fielders can complete THAT play.
+    if(positions.includes(s.main)&&rows.some(x=>x.grades[s.main].ok))rows=rows.filter(x=>x.grades[s.main].ok);
+    rows.sort((a,b)=>(+b.ok)-(+a.ok)||b.score-a.score||a.solution.order-b.solution.order);
+    const best=rows[0];
+    const sol=clonePlan(best.solution);
+    for(const p of positions){const g=best.grades[p];if(g.ok){
+      // Retain the actual movement and semantic equivalent for replay, except
+      // a post-third-out return throw, which is intentionally not played out.
+      sol.roles[p].move=g.actual.move;
+      if(!(sol.roles[p].action==='FORCE'&&g.actual.action==='PIVOT')){
+        sol.roles[p].action=g.actual.action;sol.roles[p].target=g.actual.target;
+      }
+    }}
+    for(const c of sol.chain){
+      if(sol.roles[c.toPos]&&sol.roles[c.toPos].action==='TAG'&&c.text.includes('踩垒'))c.text=c.text.replace('踩垒','触杀');
+    }
+    best.solution=sol;return best;
   }
   function grade(s,pos,answer,plans){
-    const r=s.roles[pos]; if(!r)return {ok:false,incomplete:true};
-    answer=answer||{};
-    const target=normalizeTarget(s,answer.target,plans);
-    const actual={move:answer.move||null,action:answer.action||null,target:ACT[answer.action]&&ACT[answer.action].target?target:null};
-    const candidates=[r,...r.alternatives];
-    const matches=candidates.map(c=>({reference:c,move:actual.move===c.move,action:actual.action===c.action,target:!ACT[c.action].target||actual.target===c.target}));
-    matches.sort((a,b)=>(+b.move + +b.action + +b.target)-(+a.move + +a.action + +a.target));
-    const best=matches[0],ok=best.move&&best.action&&best.target;
-    return {...best,ok,actual,alternative:ok&&best.reference!==r,incomplete:!actual.move||!actual.action||!!(ACT[actual.action]&&ACT[actual.action].target&&!actual.target)};
+    const entries={...(plans||{}),[pos]:answer||{}};
+    const positions=Object.keys(entries).filter(p=>s.roles[p]&&complete(entries[p]));
+    if(!positions.includes(pos))positions.push(pos);
+    return evaluate(s,entries,positions).grades[pos]||{ok:false,incomplete:true};
   }
   function complete(answer){return !!(answer&&answer.move&&ACT[answer.action]&&(!ACT[answer.action].target||answer.target));}
   function validate(){
@@ -631,7 +853,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
     if(cells.size!==24)errors.push('missing states');if(positions.size!==9)errors.push('missing positions');
     return {ok:!errors.length,errors,scenes:scenes.length,questions:scenes.reduce((n,s)=>n+s.positions.length,0),combinations:cells.size,categories:Object.keys(CATS).length,positions:positions.size};
   }
-  const API={POS,ORDER,START,BASES,BASE_TEXT,CATS,ACT,scenes,BY_ID,zoneXY,normalizeTarget,grade,complete,validate};
+  const API={POS,ORDER,START,BASES,BASE_TEXT,CATS,ACT,scenes,BY_ID,zoneXY,normalizeTarget,grade,evaluate,solutionVariants,forceTargets,complete,validate};
   root.BaseballEngine=API;
   if(typeof module!=='undefined'&&module.exports)module.exports=API;
 })(typeof window!=='undefined'?window:globalThis);
@@ -647,7 +869,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  const BASE_SHORT=BASE_NAMES;
  const POSITION_NAMES={P:'投手',C:'捕手','1B':'一垒手','2B':'二垒手','3B':'三垒手',SS:'游击',LF:'左外野',CF:'中外野',RF:'右外野'};
  const CATEGORY_NAMES={ground:'内野滚地球',infieldin:'内野前移',fly:'外野高飞球',single:'外野落地球',gap:'深远落地球',bunt:'短打',steal:'盗垒',wild:'暴投',line:'平飞球',force:'一垒先完成出局',popup:'内野高飞球'};
- const ACTION_NAMES={FIELD_THROW:'接球传球',CATCH:'接杀',CATCH_THROW:'接杀再传',FORCE:'接球踩垒',TAG:'接球触杀',PIVOT:'踩二传一',RELAY:'打截再传',BACKUP:'补位防漏球',COVER:'补垒接球',APPEAL:'踩垒抓回垒',HOLD:'留在原位'};
+ const ACTION_NAMES={FIELD_THROW:'接球传球',CATCH:'接杀',CATCH_THROW:'接杀再传',FORCE:'接球踩垒',TAG:'接球触杀',PIVOT:'踩垒再传',RELAY:'打截再传',BACKUP:'补位防漏球',COVER:'补垒接球',APPEAL:'踩垒抓回垒',HOLD:'留在原位'};
  const ACTION_HINTS={FIELD_THROW:'接稳球，再选传到哪。',CATCH:'接住飞球，不再传球。',CATCH_THROW:'先接杀，再传球。',FORCE:'接稳球踩垒，完成封杀。',TAG:'接到球后触杀跑者，光踩垒不够。',PIVOT:'接球踩二垒，再传一垒打双杀。',RELAY:'出去打截，接到球后再传。',BACKUP:'到接球人身后补位，防传偏或漏接。',COVER:'去垒上等球，暂时不用封杀或触杀。',APPEAL:'接杀后拿球踩原垒，示意跑者没回垒。',HOLD:'留在原位，不抢球。'};
  function positionName(p){return POSITION_NAMES[p]||p;}
  function actName(k,short=false){return E.ACT[k]?(ACTION_NAMES[k]||E.ACT[k].label):'未选择';}
@@ -784,7 +1006,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   if(!s.zones[key])return key||'未选择';
   if(key.startsWith('CUT')){
    const p=s.positions.find(p=>s.roles[p].move===key),two=!!s.zones.CUT2;
-   return (two?(key==='CUT2'?'第二打截位':'第一打截位'):'打截位')+(p?' · '+p:'');
+   return (two?(key==='CUT2'?'第二打截位':'第一打截位'):'打截位')+(answered&&p?' · '+p:'');
   }
   if(key==='BACK_BALL')return '接球人身后';
   if(key.startsWith('BACK'))return casualText(s.zones[key].label).replace('传球后方','后面补位');
@@ -793,6 +1015,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function roleReason(s,p,ref){
   const r=ref||s.roles[p],base=E.BASES[r.move]&&E.BASES[r.move].label;
   const target=E.BASES[r.target]&&E.BASES[r.target].label;
+  if(r.note)return r.note;
   if(r.action==='BACKUP')return r.move==='BACK_BALL'?`${positionName(s.main)}已经喊接，你去他身后补位，防球漏过去，别抢球。`:`去${zoneLabel(s,r.move)}，沿传球方向站开，防传偏或漏接。不是去垒上接球。`;
   if(r.action==='COVER')return `去${base}补位等球，别让跑者再多跑一垒。现在不用封杀或触杀。`;
   if(r.action==='FORCE'){
@@ -805,7 +1028,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
    if(s.cat==='force')return '打者先出局后，二垒就不能封杀了。接到球要触杀，光踩二垒没用。';
    return `在${base}接球后要触杀，光踩垒没用。${s.cat==='steal'?'这是盗垒，不是被打者逼着进垒。':s.cat==='fly'?'跑者是接杀后才往前跑的，不是封杀。':''}`;
   }
-  if(r.action==='PIVOT')return '二垒接球踩垒，再传一垒，打二打一。';
+  if(r.action==='PIVOT')return `接球踩${base||'垒'}，再传${target||'一垒'}。`;
   if(r.action==='RELAY'){
    const next=s.positions.find(who=>s.roles[who].move===r.target);
    return `${r.move==='CUT2'?'在第二打截位接球':'出去打截，站在来球和目标垒之间'}，接到球${target?'传'+target:next?'传给'+positionName(next):'继续转传'}。`;
@@ -816,8 +1039,8 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   if(r.action==='FIELD_THROW'){
    if(s.cat==='wild')return '捕手捡到球，传给补本垒的投手。别拿着球去追跑者。';
    if(s.cat==='force')return '打者已经出局，接着传二垒抓跑者。';
-   if(s.cat==='ground'&&Object.values(s.roles).some(x=>x.action==='PIVOT'))return '接球传二垒，让队友踩二垒后再传一垒，打二打一。';
-   if(s.cat==='ground'&&s.altChain)return '传一垒或二垒都来得及，拿到第三个出局就换边。';
+   if(s.cat==='ground'&&r.target==='SECOND'&&s.outs<2)return '接球传二垒，让队友踩垒；来得及再传一垒，打二打一。';
+   if(s.cat==='ground'&&s.outs===2)return `接球传${target}，球先到、队友接稳踩垒，就是第三个出局。`;
    if(r.target&&r.target.startsWith('CUT'))return `先接稳落地球，再传给打截的${positionName(s.positions.find(who=>s.roles[who].move===r.target))}，不要直接长传。`;
    return `接稳球，传${target||'给队友'}。${s.cat==='infieldin'?'这球要先守住本垒。':s.cat==='bunt'?'先抓打者，别和队友抢球。':s.cat==='steal'?'传过去抓盗垒。':'先拿一个出局。'}`;
   }
@@ -899,7 +1122,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function safeStats(x){const s=emptyStats();if(!x||typeof x!=='object')return s;s.total=num(x.total);s.correct=Math.min(s.total,num(x.correct));s.streak=Math.min(s.correct,num(x.streak));for(const p of E.ORDER){const z=x.positions&&x.positions[p];if(z)s.positions[p]={total:num(z.total),correct:Math.min(num(z.total),num(z.correct))};}for(let o=0;o<3;o++)for(let m=0;m<8;m++){const k=o+'-'+m,z=x.coverage&&x.coverage[k];if(z)s.coverage[k]={total:num(z.total),correct:Math.min(num(z.total),num(z.correct))};}if(Array.isArray(x.wrong))s.wrong=[...new Set(x.wrong.filter(k=>{if(typeof k!=='string')return false;const [id,p]=k.split('@'),sc=E.BY_ID[id];return sc&&(p==='TEAM'||sc.roles[p]);}))].slice(-3000);return s;}
  let settings=safeSettings(saved.settings),stats=safeStats(saved.stats),draft=clone(settings);
  let current=null,focus=null,phase='move',plans={},answered=false,grades={},history=[],expanded=false,pool=[],drawn=new Set(),stateDraw={},catDraw={},posDraw={},recent=[],toastTimer=0,drag=null,suppressClickUntil=0;
- let replay=null,raf=0,speed=1,playing=false,lastFrame=0;
+ let replay=null,raf=0,speed=1,playing=false,lastFrame=0,judgedSolution=null;
  const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
  const el={field:$('field'),players:$('playersLayer'),targets:$('targetsLayer'),ball:$('ball'),choice:$('choicePanel')};
  const mobile=()=>window.matchMedia('(max-width:800px), (max-height:520px) and (pointer:coarse)').matches;
@@ -960,7 +1183,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function clearRoutes(){for(const id of ['incomingPath','runnerPaths','movePaths','passPaths','replayPaths'])$(id).replaceChildren();}
  function place(node,xy){node.style.left=(xy[0]/720*100)+'%';node.style.top=(xy[1]/610*100)+'%';}
  function startXY(p){return current.scene.startOverrides&&current.scene.startOverrides[p]||E.START[p];}
- function xy(zone,p=focus){return E.zoneXY(current.scene,zone,p);}
+ function xy(zone,p=focus){if(zone&&zone.startsWith('PLAYER_')){const who=zone.slice(7);return plans[who]&&plans[who].move?E.zoneXY(current.scene,plans[who].move,who):E.START[who]?startXY(who):null;}return E.zoneXY(current.scene,zone,p);}
  function zoneName(zone,p=focus){if(!zone)return '未选择';if(zone==='HOLD')return '留在原位';if(zone.startsWith('PLAYER_')){const who=zone.slice(7),dest=E.normalizeTarget(current.scene,zone,plans);return `${positionName(who)} · ${current.scene.zones[dest]?zoneLabel(current.scene,dest):'队友当前位置'}`;}return zoneLabel(current.scene,zone);}
  function currentAnswer(){return plans[focus]||{move:null,action:null,target:null};}
  function roles(){return current?current.roles:[];}
@@ -1024,7 +1247,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function loadTask(t){
   mobileResultPane='result';mobileResultRole=null;
   ['briefDialog','targetDialog','roleDialog','detailDialog'].forEach(id=>{if($(id).open)closeDialog(id);});
-  stopReplay();replay=null;cancelDrag();suppressClickUntil=0;current=t;answered=false;grades={};history=[];expanded=false;phase='move';plans={};introState=t?'playing':'judging';
+  stopReplay();replay=null;cancelDrag();suppressClickUntil=0;current=t;answered=false;grades={};judgedSolution=null;history=[];expanded=false;phase='move';plans={};introState=t?'playing':'judging';
   $('resultCard').hidden=true;$('playbackCard').hidden=true;
   if(!t){renderEmpty();return;}
   focus=t.focus;for(const p of roles())plans[p]={move:null,action:null,target:null};
@@ -1088,7 +1311,30 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function moveTargets(){return ['BALL','FIRST','SECOND','THIRD','HOME',...Object.keys(current.scene.zones).filter(k=>k.startsWith('CUT')||k.startsWith('BACK'))];}
  function throwTargets(){return ['FIRST','SECOND','THIRD','HOME',...Object.keys(current.scene.zones).filter(k=>k.startsWith('CUT'))];}
  function visibleMoveTargets(){return ['BALL','FIRST','SECOND','THIRD','HOME'];}
+ function moveChoiceTargets(){
+  const out=visibleMoveTargets().slice();
+  // Text choices can include cutoff responsibilities without drawing the hidden cutoff point on the field.
+  // Every trained position sees the same choices; the UI never names which fielder is the reference cutoff player.
+  if(current&&current.scene.zones.CUT)out.push('CUT');
+  if(current&&current.scene.zones.CUT2)out.push('CUT2');
+  return out;
+ }
+ function moveChoiceLabel(k){
+  if(k==='CUT')return '出去打截';
+  if(k==='CUT2')return '出去打第二截';
+  return zoneName(k);
+ }
  function visibleThrowTargets(){return ['FIRST','SECOND','THIRD','HOME'];}
+ function throwChoiceTargets(){
+  const base=visibleThrowTargets(),a=currentAnswer();
+  if(!a||!a.action)return base;
+  const extra=[];
+  if(['FIELD_THROW','CATCH_THROW','RELAY'].includes(a.action)){
+   if(current.scene.zones.CUT&&a.move!=='CUT')extra.push('CUT');
+   if(current.scene.zones.CUT2&&a.move!=='CUT2')extra.push('CUT2');
+  }
+  return [...base,...extra];
+ }
  function renderTargets(){
   el.targets.replaceChildren();if(answered||!['move','throw'].includes(phase))return;
   const targets=phase==='move'?visibleMoveTargets():visibleThrowTargets(),a=currentAnswer();
@@ -1116,7 +1362,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function selectRole(p){if(answered||introLocked()||!roles().includes(p))return;focus=p;expanded=false;const a=currentAnswer();phase=!a.move?'move':!a.action?'action':E.ACT[a.action].target&&!a.target?'throw':'done';renderAll();}
  function goPhase(p){if(answered||introLocked())return;const a=currentAnswer();if(p!=='move'&&!a.move){toast('先选择这个位置的跑位。');p='move';}else if(p==='throw'&&!a.action){toast('先选择处理动作。');p='action';}else if(p==='throw'&&!E.ACT[a.action].target){toast('这个动作不需要追加传球。');p='done';}phase=p;expanded=false;renderAll();if((p==='move'||p==='throw')&&mobile())revealField();}
  function revealField(){fitMobileBoard();}
- function receiverLabel(k){const sc=current.scene;const found=sc.positions.find(p=>p!==focus&&(settings.mode==='team'?plans[p]&&plans[p].move:sc.roles[p].move)===k);return found?found+' 接应':'';}
+ function receiverLabel(k){if(settings.mode!=='team')return '';const found=roles().find(p=>p!==focus&&plans[p]&&plans[p].move===k);return found?found+' 接应':'';}
  function renderIntroPanel(){
   if(!current)return;
   const s=current.scene;
@@ -1156,11 +1402,11 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   const title=t=>`<h4 class="choice-title">${t}</h4>`,desc=t=>`<p class="choice-desc">${t}</p>`;
   if(answered){el.choice.innerHTML=`<div class="ready-panel"><div class="ready-mark">${Object.values(grades).every(g=>g.ok)?'✓':'↗'}</div><b>已提交 · ${Object.values(grades).filter(g=>g.ok).length}/${roles().length} 个位置正确</b><p>看结果或重播参考线路。</p></div>`;}
   else if(phase==='move'){
-   el.choice.innerHTML=title('01 跑位')+desc('点目标，或拖动高亮守备员。')+`<button class="quick-select" id="expandMovesBtn" aria-expanded="${expanded}">${expanded?'▴ 收起':'▾ 展开'}快捷选位</button>`+(expanded?`<div class="choice-grid move-choices">${[...visibleMoveTargets(),'HOLD'].map(k=>`<button class="choice ${a.move===k?'active':''}" data-move="${k}">${esc(zoneName(k))}</button>`).join('')}</div>`:'');
+   el.choice.innerHTML=title('01 跑位')+desc('点目标，或拖动高亮守备员。')+`<button class="quick-select" id="expandMovesBtn" aria-expanded="${expanded}">${expanded?'▴ 收起':'▾ 展开'}快捷选位</button>`+(expanded?`<div class="choice-grid move-choices">${[...moveChoiceTargets(),'HOLD'].map(k=>`<button class="choice ${a.move===k?'active':''}" data-move="${k}">${esc(k==='HOLD'?'留在原位':moveChoiceLabel(k))}</button>`).join('')}</div>`:'');
   }else if(phase==='action'){
    el.choice.innerHTML=title('02 处理')+`<div class="choice-grid">${current.scene.actionOptions.map((k,i)=>`<button class="choice ${a.action===k?'active':''}" data-action="${k}" title="${esc(ACTION_HINTS[k])}"><span class="choice-no">${String(i+1).padStart(2,'0')}</span><span>${actName(k,true)}</span></button>`).join('')}</div>`;
   }else if(phase==='throw'){
-   el.choice.innerHTML=title('03 传球')+desc('点垒包 / 接应人，或直接拖出传球线。')+`<div class="choice-grid target-choices">${throwTargets().map(k=>`<button class="choice ${E.normalizeTarget(current.scene,a.target,plans)===k?'active':''}" data-throw="${k}"><span>${esc(zoneName(k))}${receiverLabel(k)?`<small>${esc(receiverLabel(k))}</small>`:''}</span></button>`).join('')}</div>`;
+   el.choice.innerHTML=title('03 传球')+desc('点垒包 / 接应人，或直接拖出传球线。')+`<div class="choice-grid target-choices">${throwChoiceTargets().map(k=>`<button class="choice ${E.normalizeTarget(current.scene,a.target,plans)===k?'active':''}" data-throw="${k}"><span>${esc(zoneName(k))}${receiverLabel(k)?`<small>${esc(receiverLabel(k))}</small>`:''}</span></button>`).join('')}</div>`;
   }else{
    const more=roles().length>done;el.choice.innerHTML=`<div class="ready-panel"><div class="ready-mark">✓</div><b>${more?'该位置已完成':'方案已完成'}</b><p>${more?'继续安排下一个关键位置。':'可以提交判断；需要可返回修改。'}</p></div>`;
   }
@@ -1186,7 +1432,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   if(answered||!current)return false;stopSituationIntro(false);
   if(roles().some(p=>!E.complete(plans[p]))){toast('还有位置没有安排完。');return false;}
   stopReplay();cancelDrag();
-  grades=Object.fromEntries(roles().map(p=>[p,E.grade(current.scene,p,plans[p],plans)]));answered=true;
+  const decision=E.evaluate(current.scene,plans,roles());grades=decision.grades;judgedSolution=decision.solution;answered=true;
   const ok=Object.values(grades).every(g=>g.ok);stats.total++;if(ok){stats.correct++;stats.streak++;stats.wrong=stats.wrong.filter(k=>k!==current.key);}else{stats.streak=0;if(!stats.wrong.includes(current.key))stats.wrong.push(current.key);}
   for(const p of roles()){const x=stats.positions[p]||(stats.positions[p]={total:0,correct:0});x.total++;if(grades[p].ok)x.correct++;}
   const k=current.scene.outs+'-'+current.scene.mask,c=stats.coverage[k]||(stats.coverage[k]={total:0,correct:0});c.total++;if(ok)c.correct++;
@@ -1198,25 +1444,36 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  }
  function explainMismatch(g,pos){
   const expected=g.reference||current.scene.roles[pos],a=g.actual,parts=[];
+  if(current.scene.cat==='ground'&&pos===current.scene.main&&a.action==='FIELD_THROW'&&E.BASES[a.target]&&!E.forceTargets(current.scene).includes(a.target))return `${zoneName(a.target,pos)}没有封杀关系，不能只靠接球踩垒抓人。`;
+  if(!g.move&&settings.mode==='team'&&judgedSolution&&judgedSolution.chain.some(c=>c.toPos===pos))parts.push(`队友这条传球路线需要你在${zoneName(expected.move,pos)}接球。`);
   if(!g.move)parts.push(`${positionName(pos)}先去${zoneName(expected.move,pos)}。`);
   if(!g.action){
    if(expected.action==='TAG')parts.push('这里要触杀，光踩垒不够。');
    else if(expected.action==='FORCE')parts.push('这里可以封杀，接球踩垒就行。');
-   else if(expected.action==='PIVOT')parts.push('二垒接球踩垒，再传一垒，打二打一。');
+   else if(expected.action==='PIVOT')parts.push(`接球踩${zoneName(expected.move,pos)}，再传${zoneName(expected.target,pos)}。`);
    else if(expected.action==='RELAY')parts.push('这里是打截，接球后还要继续传。');
    else if(expected.action==='APPEAL')parts.push('这是接杀后抓回垒，接球踩原来的垒。');
    else if(expected.action==='BACKUP')parts.push('去接球人身后补位，防漏球，别抢球。');
    else if(current.scene.outs===2&&expected.action==='CATCH')parts.push('两出局，接住就换边，不用再传球。');
    else parts.push(`这里应该${actName(expected.action,true)}。`);
   }
-  if(!g.target&&E.ACT[expected.action].target)parts.push(`球要传到${zoneName(expected.target,pos)}。`);
+  if(!g.target&&E.ACT[expected.action].target)parts.push(`这条配合需要把球传到${zoneName(expected.target,pos)}，并有人接球。`);
   return parts.join('');
+ }
+ function acceptedRoutesFor(pos){
+  if(!answered||!current)return [];
+  const unique=new Set();
+  for(const v of E.solutionVariants(current.scene)){
+   const r=v.roles[pos];if(!r)continue;
+   unique.add(routeText(r,pos));
+  }
+  return [...unique];
  }
  function renderResults(){
   const all=Object.values(grades),ok=all.every(g=>g.ok),n=all.filter(g=>g.ok).length,alt=all.some(g=>g.alternative);
   $('resultCard').hidden=false;$('resultCard').classList.toggle('bad',!ok);$('resultSymbol').textContent=ok?'✓':'↗';$('resultTitle').textContent=ok?alt?'这样也可以':'判断正确':settings.mode==='team'?`${n}/${all.length} 个位置正确`:'需要调整';
   $('resultSubtitle').textContent='跑位 / 处理 / 传球';
-  $('resultLead').textContent=ok?alt?'这样处理也可以。':'答对了。可以重播看看队友怎么配合。':'看看哪一步要改。这题已记入错题。';
+  $('resultLead').textContent=ok?'处理成立，动画按这条路线播放。':'看看哪一步要改。这题已记入错题。';
   let html='';
   for(const p of roles()){
    const g=grades[p],a=g.actual,r=g.reference;
@@ -1225,16 +1482,18 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
    html+=row('跑位',g.move,zoneName(a.move,p),zoneName(r.move,p));html+=row('处理',g.action,actName(a.action,true),actName(r.action,true));
    if(E.ACT[r.action].target)html+=row('传球',g.target,zoneName(a.target,p),zoneName(r.target,p));
    else if(a.action&&E.ACT[a.action].target)html+=`<div class="verdict-row wrong"><span class="vmark">×</span><div>这一步不用再传球。</div></div>`;
-   if(g.alternative)html+=`<p class="alternative">${readingHTML(r.label||'这样处理也可以。')}</p>`;
+   if(g.alternative)html+=`<p class="alternative">按合理处理计分</p>`;
    html+=`<div class="reason"><strong>要点</strong>${readingHTML(roleReason(current.scene,p,r))}${!g.ok?`<p style="margin-top:6px">${readingHTML(explainMismatch(g,p))}</p>`:''}</div></article>`;
   }
-  if(settings.mode==='single'&&current.scene.positions.length>1){html+=`<details class="help-section" style="margin:12px 0 0"><summary style="font-size:12px;color:var(--mint);cursor:pointer;padding:8px 0">其他关键配合</summary>`;for(const p of current.scene.positions.filter(p=>p!==focus)){const r=current.scene.roles[p];html+=`<p style="font-size:12px;margin-top:8px"><strong>${p} · ${E.POS[p]}</strong><br>${esc(zoneName(r.move,p))} → ${actName(r.action,true)}${r.target?' → '+esc(zoneName(r.target,p)):''}<br><span style="color:var(--muted)">${readingHTML(roleReason(current.scene,p,r))}</span></p>`;}html+='</details>';}
+  if(settings.mode==='single'&&current.scene.positions.length>1){html+=`<details class="help-section" style="margin:12px 0 0"><summary style="font-size:12px;color:var(--mint);cursor:pointer;padding:8px 0">其他关键配合</summary>`;for(const p of (judgedSolution?Object.keys(judgedSolution.roles):current.scene.positions).filter(p=>p!==focus)){const r=judgedSolution&&judgedSolution.roles[p]||current.scene.roles[p];html+=`<p style="font-size:12px;margin-top:8px"><strong>${p} · ${E.POS[p]}</strong><br>${esc(zoneName(r.move,p))} → ${actName(r.action,true)}${r.target?' → '+esc(zoneName(r.target,p)):''}<br><span style="color:var(--muted)">${readingHTML(roleReason(current.scene,p,r))}</span></p>`;}html+='</details>';}
+  const alternatives=acceptedRoutesFor(focus);
+  if(alternatives.length>1)html+=`<details class="other-routes"><summary>其他可行处理 · ${alternatives.length} 种</summary><div>${alternatives.map(t=>`<p>${readingHTML(t)}</p>`).join('')}</div></details>`;
   $('answerDetails').innerHTML=html;
  }
  // Pointer interaction: only the draggable token captures touch; the field
  // itself keeps vertical page scrolling and pinch zoom available.
  function coords(e){const b=el.field.getBoundingClientRect();return [(e.clientX-b.left)/b.width*720,(e.clientY-b.top)/b.height*610];}
- function nearestTarget(point,kind){const keys=kind==='throw'?throwTargets():moveTargets(),b=el.field.getBoundingClientRect(),candidates=keys.map(k=>({key:k,xy:xy(k),hidden:k.startsWith('CUT')||k.startsWith('BACK')}));if(kind==='throw'){const vp=visualPositions();for(const p of E.ORDER)if(p!==focus)candidates.push({key:'PLAYER_'+p,xy:vp[p],hidden:false});}let best=null,d=Infinity;for(const item of candidates){const distance=Math.hypot((item.xy[0]-point[0])*b.width/720,(item.xy[1]-point[1])*b.height/610);if(distance<d){best=item;d=distance;}}if(!best)return null;return d<=(best.hidden?52:31)?best:null;}
+ function nearestTarget(point,kind){const keys=kind==='throw'?throwChoiceTargets():moveTargets(),b=el.field.getBoundingClientRect(),candidates=keys.map(k=>({key:k,xy:xy(k),hidden:k.startsWith('CUT')||k.startsWith('BACK')}));if(kind==='throw'){const vp=visualPositions();for(const p of E.ORDER)if(p!==focus)candidates.push({key:'PLAYER_'+p,xy:vp[p],hidden:false});}let best=null,d=Infinity;for(const item of candidates){const distance=Math.hypot((item.xy[0]-point[0])*b.width/720,(item.xy[1]-point[1])*b.height/610);if(distance<d){best=item;d=distance;}}if(!best)return null;return d<=(best.hidden?52:31)?best:null;}
  function beginDrag(e){
   const button=e.target.closest('.player');if(!button||answered||introLocked()||e.button!==0||!e.isPrimary)return;stopSituationIntro(false);
   if(button.dataset.pos!==focus)return;
@@ -1263,18 +1522,19 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  // cancelled before navigating, changing filters, dragging, or hiding the tab.
  function stopReplay(){cancelAnimationFrame(raf);raf=0;playing=false;lastFrame=0;if($('playBtn'))$('playBtn').textContent=replay&&replay.t>=replay.total?'↻ 重播':'▶ 播放';syncMobileReplay();}
  function initReplay(){
-  stopReplay();const s=current.scene;let chain=s.chain;
-  if(s.altChain&&plans[s.main]&&E.normalizeTarget(s,plans[s.main].target,plans)==='SECOND'&&grades[s.main]&&grades[s.main].ok)chain=s.altChain;
+  stopReplay();const s=current.scene,solution=judgedSolution||E.evaluate(s,plans,roles()).solution;let chain=solution.chain;
   const phases=[{type:'move',duration:1100,text:s.kind==='held'?'① 队友去补位，拿球的人准备传球':'① 接球的人迎球，队友同时补位'}];
   chain.forEach((c,i)=>phases.push({type:'pass',duration:850,from:c.from,to:c.to,text:`${['②','③','④','⑤'][i]||'→'} ${c.text}`}));
-  phases.push({type:'finish',duration:700,text:chain.length?'✓ 传球完成，补位的人守住身后。':s.outs===2?'✓ 接杀，三个出局，换边。':'✓ 球已接住，队友在身后补位。'});
+  const finalReceiver=chain.length?solution.roles[chain[chain.length-1].toPos]:null;
+  const ends=chain.length?['FORCE','TAG','PIVOT'].includes(finalReceiver.action)&&(actualOuts(s)===2||solution.roles[s.main].action==='CATCH_THROW'&&actualOuts(s)===1||chain.length>1&&Object.values(solution.roles).some(r=>r.action==='PIVOT')&&actualOuts(s)===1):actualOuts(s)===2&&['CATCH','CATCH_THROW'].includes(solution.roles[s.main].action);
+  phases.push({type:'finish',duration:700,text:ends?'✓ 第三个出局，换边。':chain.length?'✓ 按这条路线完成配合。':'✓ 球已接住。'});
   let t=0;for(const f of phases){f.start=t;t+=f.duration;f.end=t;}
-  replay={phases,chain,total:t,t:0};$('playbackCard').hidden=false;
+  replay={phases,chain,roles:solution.roles,solutionId:solution.id,total:t,t:0};$('playbackCard').hidden=false;
   prepareReplayField();renderReplay(0);
  }
  function prepareReplayField(){
   el.field.classList.remove('targeting','throwing');el.field.classList.add('replaying');el.targets.replaceChildren();clearRoutes();incoming();renderRunners();createPlayers(Object.fromEntries(E.ORDER.map(p=>[p,startXY(p)])),true);
-  for(const p of current.scene.positions){const r=current.scene.roles[p],from=startXY(p),to=xy(r.move,p);if(Math.hypot(to[0]-from[0],to[1]-from[1])>6)line('movePaths',from,to,{'stroke-width':roles().includes(p)?3.2:2.2,'stroke-dasharray':'8 7','marker-end':'url(#moveArrow)',opacity:roles().includes(p)?.7:.34});}
+  for(const p of Object.keys(replay.roles)){const r=replay.roles[p],from=startXY(p),to=xy(r.move,p);if(to&&Math.hypot(to[0]-from[0],to[1]-from[1])>6)line('movePaths',from,to,{'stroke-width':roles().includes(p)?3.2:2.2,'stroke-dasharray':'8 7','marker-end':'url(#moveArrow)',opacity:roles().includes(p)?.7:.34});}
   replay.chain.forEach(c=>line('replayPaths',xy(c.from),xy(c.to),{stroke:'#397ebe','stroke-width':2.6,'stroke-dasharray':'5 6','marker-end':'url(#passArrow)',opacity:.25}));
   // Runner arrows show intended direction only, not a simulated arrival time.
   for(const r of current.scene.runnerRoutes){const a=xy(r.from),b=xy(r.to);if(!a||!b)continue;const order=['HOME','FIRST','SECOND','THIRD','HOME'];let points=[];if(r.from==='SECOND'&&r.to==='HOME')points=[a,xy('THIRD'),b];else if(r.from==='FIRST'&&r.to==='HOME')points=[a,xy('SECOND'),xy('THIRD'),b];else if(r.from==='FIRST'&&r.to==='THIRD')points=[a,xy('SECOND'),b];else if(r.from==='HOME'&&r.to==='SECOND')points=[a,xy('FIRST'),b];else points=[a,b];for(let i=1;i<points.length;i++)line('runnerPaths',points[i-1],points[i],{stroke:'#dcad49','stroke-width':1.5,'stroke-dasharray':'2 7','marker-end':'url(#runnerArrow)',opacity:.32});}
@@ -1284,7 +1544,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function renderReplay(t){
   if(!replay||!current)return;replay.t=Math.max(0,Math.min(replay.total,t));const f=replay.phases.find(f=>replay.t<=f.end)||replay.phases[replay.phases.length-1],index=replay.phases.indexOf(f),progress=Math.max(0,Math.min(1,(replay.t-f.start)/f.duration));
   const mt=smooth(Math.min(1,replay.t/replay.phases[0].duration));
-  for(const p of E.ORDER){const n=el.players.querySelector(`[data-pos="${p}"]`);if(!n)continue;const r=current.scene.roles[p];place(n,r?lerp(startXY(p),xy(r.move,p),mt):startXY(p));}
+  for(const p of E.ORDER){const n=el.players.querySelector(`[data-pos="${p}"]`);if(!n)continue;const r=replay.roles[p];place(n,r?lerp(startXY(p),xy(r.move,p),mt):startXY(p));}
   let ball;
   if(f.type==='move'){ball=lerp(current.scene.origin,current.scene.ball,smooth(progress));if(current.scene.kind==='fly')ball[1]-=80*Math.sin(progress*Math.PI);}
   else if(f.type==='pass')ball=lerp(xy(f.from),xy(f.to),progress);
@@ -1292,7 +1552,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   place(el.ball,ball);$('passPaths').replaceChildren();
   for(let i=0;i<replay.chain.length;i++){const c=replay.chain[i],pf=replay.phases[i+1];if(replay.t>=pf.start){const fraction=Math.min(1,(replay.t-pf.start)/pf.duration);line('passPaths',xy(c.from),lerp(xy(c.from),xy(c.to),fraction),{stroke:'#397ebe','stroke-width':3.6,'marker-end':'url(#passArrow)',opacity:.95});}}
   setReading('replayCaption',f.text);$('fieldInstruction').textContent=casualText(f.text);$('phaseNumber').textContent=f.type==='finish'?'✓':String(index+1);$('replayStepLabel').textContent=(index+1)+' / '+replay.phases.length;
-  $('replayRange').value=String(Math.round(replay.t/replay.total*1000));$('fieldTip').textContent='REFERENCE / 参考线路 · '+speed+'×';
+  $('replayRange').value=String(Math.round(replay.t/replay.total*1000));$('fieldTip').textContent=(Object.values(grades).every(g=>g.ok)?'你的路线':'参考路线')+' · '+speed+'×';
   if(replay.t>=replay.total){playing=false;cancelAnimationFrame(raf);raf=0;$('playBtn').textContent='↻ 重播';}
   syncMobileReplay();
  }
@@ -1369,7 +1629,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function openTargetList(kind){
   if(answered||!current)return;
   const throwMode=kind==='throw';$('targetTitle').textContent=throwMode?'选择传球目标':'选择跑位目标';
-  $('targetList').innerHTML=(throwMode?visibleThrowTargets():[...visibleMoveTargets(),'HOLD']).map(k=>`<button class="btn" ${throwMode?'data-mobile-throw':'data-mobile-move'}="${esc(k)}">${esc(zoneName(k))}</button>`).join('');
+  $('targetList').innerHTML=(throwMode?throwChoiceTargets():[...visibleMoveTargets(),'HOLD']).map(k=>`<button class="btn" ${throwMode?'data-mobile-throw':'data-mobile-move'}="${esc(k)}">${esc(zoneName(k))}</button>`).join('');
   showDialog('targetDialog');
  }
  function openRoleList(){
@@ -1421,17 +1681,17 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
     const p=mobileResultRole&&grades[mobileResultRole]?mobileResultRole:roles().find(p=>!grades[p].ok)||focus,g=grades[p];mobileResultRole=p;
     const r=g.reference;
     const why=g.ok?roleReason(current.scene,p,r):explainMismatch(g,p)||roleReason(current.scene,p,r);
-    el.choice.innerHTML=`<div class="m-feedback">${roles().length>1?`<div class="m-caption"><span>当前解析：${p} · ${E.POS[p]}</span><b>右下角看全部</b></div>`:''}<div class="m-answer-route"><span>${g.alternative?'另一种处理':g.ok?'参考路线':'参考路线'}${roles().length>1?' · '+p:''}</span>${readingHTML(routeText(r,p))}</div>${g.ok?'':`<div class="m-your-route">你的路线：${readingHTML(routeText(g.actual,p))}</div>`}<p class="m-reason-short">${readingHTML(why)}</p></div>`;
+    el.choice.innerHTML=`<div class="m-feedback">${roles().length>1?`<div class="m-caption"><span>当前：${p} · ${E.POS[p]}</span><b>右下角看全部</b></div>`:''}<div class="m-answer-route"><span>${g.ok?'你的处理':'一种参考处理'}${roles().length>1?' · '+p:''}</span>${readingHTML(routeText(r,p))}</div>${g.ok?'':`<div class="m-your-route">你的路线：${readingHTML(routeText(g.actual,p))}</div>`}<p class="m-reason-short">${readingHTML(why)}</p></div>`;
    }
    return;
   }
   if(phase==='move'){
-   const keys=['BALL','FIRST','SECOND','THIRD','HOME'];
-   el.choice.innerHTML=caption('01 跑位',settings.mode==='team'?`${done}/${roles().length} 已安排`:'拖到你判断的位置')+`<div class="m-grid two-rows">${keys.map(k=>button('move',k)).join('')}<button class="choice" data-move="HOLD">留在原位</button></div>`;
+   const keys=moveChoiceTargets();
+   el.choice.innerHTML=caption('01 跑位',settings.mode==='team'?`${done}/${roles().length} 已安排`:'选择你判断的跑位')+`<div class="m-grid two-rows">${keys.map(k=>button('move',k,moveChoiceLabel(k))).join('')}<button class="choice" data-move="HOLD">留在原位</button></div>`;
   }else if(phase==='action'){
    el.choice.innerHTML=caption('02 处理')+`<div class="m-grid">${current.scene.actionOptions.map(k=>button('action',k,actName(k,true))).join('')}</div>`;
   }else if(phase==='throw'){
-   el.choice.innerHTML=caption('03 传球','点垒包，或拖到你判断的位置')+`<div class="m-grid two-rows">${visibleThrowTargets().map(k=>button('throw',k)).join('')}</div>`;
+   el.choice.innerHTML=caption('03 传球','点垒包，或拖到你判断的位置')+`<div class="m-grid two-rows">${throwChoiceTargets().map(k=>button('throw',k)).join('')}</div>`;
   }else{
    el.choice.innerHTML=`<div class="m-confirm-title">${done===roles().length?'待提交':'该位置已完成'}</div><div class="m-current-plan"><p>${esc(focus)} · ${esc(E.POS[focus])}</p><div>${readingHTML(routeText(a))}</div></div><p class="m-ready-note">${done===roles().length?'点步骤可修改。':`${done}/${roles().length} 个位置已完成。`}</p>`;
   }
@@ -1463,8 +1723,8 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
 
  // Deliberately small test interface; all gameplay logic remains local.
  window.BaseballTrainer={
-  version:'3.7-casual-highlight',report,engine:E,home:backToStart,resume:resumeTraining,
-  state:()=>({started,current:current?{id:current.scene.id,focus,roles:roles().slice(),key:current.key}:null,phase,plans:clone(plans),answered,settings:clone(settings),stats:clone(stats),playing,replay:replay?{t:replay.t,total:replay.total}:null}),
+  version:'4.4-flexible-grading',report,engine:E,home:backToStart,resume:resumeTraining,
+  state:()=>({started,introState,grades:clone(grades),solutionId:judgedSolution&&judgedSolution.id,current:current?{id:current.scene.id,focus,roles:roles().slice(),key:current.key}:null,phase,plans:clone(plans),answered,settings:clone(settings),stats:clone(stats),playing,replay:replay?{t:replay.t,total:replay.total,chain:clone(replay.chain),solutionId:replay.solutionId}:null}),
   load:(id,p,mode='single')=>{if(!started)enterTraining();const sc=E.BY_ID[id];if(!sc||mode==='single'&&!sc.roles[p])throw new Error('Unknown scenario or role');settings.mode=mode;settings.position='ALL';settings.outs='ALL';settings.mask='ALL';settings.cat='ALL';settings.review=false;loadTask({scene:sc,focus:mode==='team'?sc.main:p,roles:mode==='team'?[sc.main,...sc.positions.filter(x=>x!==sc.main)]:[p],key:id+'@'+(mode==='team'?'TEAM':p)});},
   setFilters:s=>{if(!started)enterTraining();settings=safeSettings({...settings,...s});resetDraw();persist();nextQuestion(false);},
   selectRole,move:pickMove,action:pickAction,throw:pickThrow,submit,next:()=>nextQuestion(false),pool:()=>getPool().map(t=>({id:t.scene.id,focus:t.focus,key:t.key})),stopReplay,
