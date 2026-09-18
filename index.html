@@ -230,25 +230,23 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
 
 /* v4.5 complete tactical move choices */
 .m-special-moves{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 1px 3px;margin-top:4px}.m-special-moves::-webkit-scrollbar{display:none}.m-special-moves .choice{flex:0 0 auto;min-width:112px;min-height:42px;height:42px;padding:4px 9px;border-radius:12px;font-size:11px;line-height:1.2;white-space:normal;background:#eef7ff;border-style:dashed}.m-special-moves .choice.active{background:#fff0b7;border-style:solid}@media(max-width:370px){.m-special-moves .choice{min-width:104px;font-size:10.5px}}
-/* V4.5.1: reserve visible space for tactical move choices on mobile. */
+/* V4.5.2: mobile move choices scroll vertically instead of hiding or horizontal-swiping tactical options. */
 @media(max-width:800px),(max-height:520px) and (pointer:coarse){
- #choicePanel.move-panel{overflow:hidden;display:grid;grid-template-rows:auto minmax(0,1fr) 40px;gap:4px}
- #choicePanel.move-panel>.m-caption{grid-row:1}
- #choicePanel.move-panel>.m-grid{grid-row:2;flex:none;min-height:0;height:100%;grid-template-rows:repeat(2,minmax(40px,1fr));grid-auto-rows:minmax(40px,1fr)}
- #choicePanel.move-panel>.m-special-moves{grid-row:3;min-height:40px;height:40px;margin:0;padding:0 1px 1px;align-items:stretch;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
- #choicePanel.move-panel>.m-special-moves .choice{height:38px;min-height:38px;min-width:108px;padding:3px 8px;flex:0 0 auto}
+ #choicePanel.move-panel{display:flex;flex-direction:column;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#9fb9c9 transparent;padding:2px 3px 8px 0;gap:5px}
+ #choicePanel.move-panel::-webkit-scrollbar{width:5px}
+ #choicePanel.move-panel::-webkit-scrollbar-thumb{background:#a8bfcd;border-radius:999px}
+ #choicePanel.move-panel>.m-caption{flex:0 0 auto;position:sticky;top:0;z-index:3;background:var(--paper);padding-bottom:2px}
+ #choicePanel.move-panel>.m-grid{flex:0 0 auto;height:auto!important;min-height:0;grid-template-rows:none!important;grid-auto-rows:minmax(44px,auto)!important}
+ #choicePanel.move-panel>.m-special-moves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;overflow:visible!important;height:auto!important;min-height:0!important;margin:2px 0 0;padding:0 0 5px;flex:0 0 auto}
+ #choicePanel.move-panel>.m-special-moves .choice{width:100%;min-width:0!important;height:auto!important;min-height:44px!important;padding:5px 6px;font-size:11px;white-space:normal;flex:none}
 }
-@media(max-height:610px) and (max-width:800px) and (orientation:portrait){
- #choicePanel.move-panel{grid-template-rows:14px minmax(0,1fr) 36px;gap:3px}
- #choicePanel.move-panel>.m-grid{grid-template-rows:repeat(2,minmax(38px,1fr));grid-auto-rows:minmax(38px,1fr)}
- #choicePanel.move-panel>.m-special-moves{height:36px;min-height:36px}
- #choicePanel.move-panel>.m-special-moves .choice{height:34px;min-height:34px;min-width:100px;font-size:10.5px}
+@media(max-width:370px){
+ #choicePanel.move-panel>.m-special-moves{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+ #choicePanel.move-panel>.m-special-moves .choice{min-height:42px!important;font-size:10.5px}
 }
 @media(min-width:520px) and (max-height:520px) and (pointer:coarse){
- #choicePanel.move-panel{grid-template-rows:14px minmax(0,1fr) 34px;gap:2px}
- #choicePanel.move-panel>.m-grid{grid-template-rows:repeat(2,minmax(36px,1fr));grid-auto-rows:minmax(36px,1fr)}
- #choicePanel.move-panel>.m-special-moves{height:34px;min-height:34px}
- #choicePanel.move-panel>.m-special-moves .choice{height:32px;min-height:32px;min-width:96px;font-size:10px}
+ #choicePanel.move-panel>.m-special-moves{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+ #choicePanel.move-panel>.m-special-moves .choice{min-height:38px!important;font-size:10px;padding:3px 5px}
 }
 
 </style>
@@ -1207,8 +1205,22 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function clearRoutes(){for(const id of ['incomingPath','runnerPaths','movePaths','passPaths','replayPaths'])$(id).replaceChildren();}
  function place(node,xy){node.style.left=(xy[0]/720*100)+'%';node.style.top=(xy[1]/610*100)+'%';}
  function startXY(p){return current.scene.startOverrides&&current.scene.startOverrides[p]||E.START[p];}
- function xy(zone,p=focus){if(zone&&zone.startsWith('PLAYER_')){const who=zone.slice(7);return plans[who]&&plans[who].move?E.zoneXY(current.scene,plans[who].move,who):E.START[who]?startXY(who):null;}return E.zoneXY(current.scene,zone,p);}
- function zoneName(zone,p=focus){if(!zone)return '未选择';if(zone==='HOLD')return '留在原位';if(zone.startsWith('PLAYER_')){const who=zone.slice(7),dest=E.normalizeTarget(current.scene,zone,plans);return `${positionName(who)} · ${current.scene.zones[dest]?zoneLabel(current.scene,dest):'队友当前位置'}`;}return zoneLabel(current.scene,zone);}
+ function uiExtend(from,to,len=88){const dx=to[0]-from[0],dy=to[1]-from[1],d=Math.hypot(dx,dy)||1;return [Math.max(42,Math.min(678,to[0]+dx/d*len)),Math.max(34,Math.min(576,to[1]+dy/d*len))];}
+ function genericMoveXY(zone){
+  if(!current)return null;const s=current.scene,b=E.BASES;
+  if(zone==='BACK_BALL')return uiExtend(b.HOME.xy,s.ball,82);
+  if(zone==='BACK_FIRST')return uiExtend(s.ball,b.FIRST.xy,82);
+  if(zone==='BACK_SECOND')return uiExtend(s.ball,b.SECOND.xy,82);
+  if(zone==='BACK_THIRD')return uiExtend(s.ball,b.THIRD.xy,82);
+  if(zone==='BACK_HOME')return uiExtend(s.ball,b.HOME.xy,72);
+  if(zone==='CUT'||zone==='CUT2'){
+   const target=(s.mask&4)?b.HOME.xy:(s.mask&2)?b.THIRD.xy:(s.mask&1)?b.SECOND.xy:b.HOME.xy;
+   const t=zone==='CUT2'?.72:.48;return [s.ball[0]+(target[0]-s.ball[0])*t,s.ball[1]+(target[1]-s.ball[1])*t];
+  }
+  return null;
+ }
+ function xy(zone,p=focus){if(zone&&zone.startsWith('PLAYER_')){const who=zone.slice(7);return plans[who]&&plans[who].move?xy(plans[who].move,who):E.START[who]?startXY(who):null;}return E.zoneXY(current.scene,zone,p)||genericMoveXY(zone);}
+ function zoneName(zone,p=focus){if(!zone)return '未选择';if(zone==='HOLD')return '留在原位';if(zone.startsWith('PLAYER_')){const who=zone.slice(7),dest=E.normalizeTarget(current.scene,zone,plans);return `${positionName(who)} · ${current.scene.zones[dest]?zoneLabel(current.scene,dest):'队友当前位置'}`;}return genericMoveLabel(zone)||zoneLabel(current.scene,zone);}
  function currentAnswer(){return plans[focus]||{move:null,action:null,target:null};}
  function roles(){return current?current.roles:[];}
  function getPool(s=settings){
@@ -1335,24 +1347,29 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function moveTargets(){return ['BALL','FIRST','SECOND','THIRD','HOME',...Object.keys(current.scene.zones).filter(k=>k.startsWith('CUT')||k.startsWith('BACK'))];}
  function throwTargets(){return ['FIRST','SECOND','THIRD','HOME',...Object.keys(current.scene.zones).filter(k=>k.startsWith('CUT'))];}
  function visibleMoveTargets(){return ['BALL','FIRST','SECOND','THIRD','HOME'];}
- function moveChoiceTargets(){
-  const out=visibleMoveTargets().slice();
-  // Keep special tactical positions off the field before the user chooses them,
-  // but expose every special move that exists in this scene as a text option.
-  // This guarantees that every reference/accepted answer can actually be selected.
-  if(current){
-   for(const k of Object.keys(current.scene.zones)){
-    if((k.startsWith('CUT')||k.startsWith('BACK'))&&!out.includes(k))out.push(k);
-   }
-  }
-  return out;
+ const GENERIC_TACTICAL_MOVES=['CUT','CUT2','BACK_BALL','BACK_FIRST','BACK_SECOND','BACK_THIRD','BACK_HOME'];
+ function genericMoveLabel(k){
+  return ({CUT:'出去打截',CUT2:'出去打第二截',BACK_BALL:'接球人身后',BACK_FIRST:'一垒后面补位',BACK_SECOND:'二垒后面补位',BACK_THIRD:'三垒后面补位',BACK_HOME:'本垒后面补位'})[k]||null;
  }
  function moveChoiceLabel(k){
-  if(k==='CUT')return '出去打截';
-  if(k==='CUT2')return '出去打第二截';
-  if(k==='BACK_BALL')return '接球人身后';
+  const generic=genericMoveLabel(k);if(generic)return generic;
   if(k.startsWith('BACK'))return zoneName(k);
   return zoneName(k);
+ }
+ function moveChoiceTargets(){
+  const out=visibleMoveTargets().slice(),labels=new Set(out.map(moveChoiceLabel));
+  // First include the scene's real tactical zones so every accepted/reference route remains selectable.
+  if(current){
+   for(const k of Object.keys(current.scene.zones)){
+    if(!(k.startsWith('CUT')||k.startsWith('BACK')))continue;
+    const label=moveChoiceLabel(k);
+    if(!out.includes(k)){out.push(k);labels.add(label);}
+   }
+  }
+  // Then add plausible tactical choices as distractors. This prevents the option list itself
+  // from revealing which backup/cutoff location is the reference answer.
+  for(const k of GENERIC_TACTICAL_MOVES){const label=moveChoiceLabel(k);if(!labels.has(label)){out.push(k);labels.add(label);}}
+  return out;
  }
  function visibleThrowTargets(){return ['FIRST','SECOND','THIRD','HOME'];}
  function throwChoiceTargets(){
