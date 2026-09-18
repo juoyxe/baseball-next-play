@@ -183,6 +183,45 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
 
 /* v4.0: main-field intro, no pre-answer special-zone hints */
 .prompt-mini{display:none!important}.question{grid-template-columns:minmax(0,1fr)!important}.question-copy{max-width:none}.field.intro-playing .player,.field.intro-playing .target{pointer-events:none!important}.field.intro-playing .player{opacity:.62}.field.intro-playing .player.active{opacity:1}.field.intro-playing .baseball{z-index:40}.intro-runner{position:absolute;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:5px;background:#e0b349;border:2px solid #8e7133;color:#604b23;font-size:8px;font-weight:900;display:grid;place-items:center;z-index:35;pointer-events:none;box-shadow:0 2px 5px rgba(91,72,31,.18)}
+
+/* v4.1: watch the situation first, then explicitly start judging */
+.control-card.intro-preview{display:block!important;padding:18px!important;min-height:0!important}
+.control-card.intro-preview>.focus-head,
+.control-card.intro-preview>.roster,
+.control-card.intro-preview>.steps,
+.control-card.intro-preview>.m-verdict-head,
+.control-card.intro-preview>#selectionSummary,
+.control-card.intro-preview>.tools-row,
+.control-card.intro-preview>#actionDock{display:none!important}
+.control-card.intro-preview #choicePanel{display:block!important;padding:0!important;min-height:0!important}
+.intro-control{display:flex;flex-direction:column;gap:13px;min-height:190px;justify-content:center}
+.intro-control.playing{align-items:center;text-align:center;color:var(--soft)}
+.intro-watching{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:750;color:#527181}
+.intro-watching i{width:9px;height:9px;border-radius:50%;background:#e2b94f;box-shadow:0 0 0 5px #f6e7b766;animation:introPulse 1.1s ease-in-out infinite}
+@keyframes introPulse{50%{transform:scale(.72);opacity:.6}}
+.intro-control .intro-facts{display:flex;gap:7px;flex-wrap:wrap}
+.intro-control .intro-facts span{font-size:11px;font-weight:750;color:#516c79;background:#f0f7fb;border:1px solid #c4d8e4;border-radius:999px;padding:4px 8px}
+.intro-control h3{font-size:20px;line-height:1.35;color:var(--ink);margin:0}
+.intro-control .intro-scene-text{font-size:14px;line-height:1.75;color:#536a77;margin:0}
+.intro-control .intro-scene-text:empty{display:none}
+.intro-actions{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:9px;margin-top:3px}
+.intro-actions .btn{min-height:48px;font-weight:800}
+.field.intro-playing .player,.field.intro-playing .target,.field.intro-ready .player,.field.intro-ready .target{pointer-events:none!important}
+.field.intro-playing .player,.field.intro-ready .player{opacity:.64}
+.field.intro-playing .player.active,.field.intro-ready .player.active{opacity:1}
+.field.intro-playing #runnersLayer,.field.intro-ready #runnersLayer{opacity:0}
+.field.intro-playing .baseball,.field.intro-ready .baseball{z-index:40}
+@media(max-width:800px),(max-height:520px) and (pointer:coarse){
+ .control-card.intro-preview{padding:10px 11px!important;overflow:hidden}
+ .intro-control{min-height:0;height:100%;gap:7px;justify-content:center}
+ .intro-control h3{font-size:16px;line-height:1.3}
+ .intro-control .intro-scene-text{font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+ .intro-control .intro-facts{gap:5px}.intro-control .intro-facts span{font-size:9px;padding:3px 6px}
+ .intro-actions{gap:7px;margin-top:1px}.intro-actions .btn{min-height:44px;height:44px;font-size:12px}
+ .intro-watching{font-size:12px}
+}
+@media(prefers-reduced-motion:reduce){.intro-watching i{animation:none}}
+
 </style>
 </head>
 <body><svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="ui-ball" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M5 5c6 3 6 11 0 14M19 5c-6 3-6 11 0 14m-11-9 3-1m-2 5 3 1m7-5-3-1m2 5-3 1"></path></symbol><symbol id="ui-chart" viewbox="0 0 24 24"><path d="M4 4v16h17M8 15v-4m5 4V7m5 8v-6"></path></symbol><symbol id="ui-help" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2m0 3h.01"></path></symbol><symbol id="ui-star" viewbox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9Z"></path></symbol><symbol id="ui-check" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m7 12 3 3 7-7"></path></symbol><symbol id="ui-play" viewbox="0 0 24 24"><path d="m8 4 12 8-12 8Z"></path></symbol><symbol id="ui-reset" viewbox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 7M3 4v6h6"></path></symbol><symbol id="ui-arrow" viewbox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"></path></symbol><symbol id="ui-home" viewbox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v11h12V9m-9 11v-7h6v7"></path></symbol><symbol id="ui-person" viewbox="0 0 24 24"><circle cx="12" cy="7" r="3"></circle><path d="M5 21v-3a7 7 0 0 1 14 0v3"></path></symbol><symbol id="ui-group" viewbox="0 0 24 24"><circle cx="8" cy="7" r="3"></circle><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-17a3 3 0 0 1 0 6m2 4a6 6 0 0 1 4 6"></path></symbol><symbol id="ui-settings" viewbox="0 0 24 24"><path d="M4 7h16M4 17h16"></path><circle cx="9" cy="7" fill="#fffefb" r="3"></circle><circle cx="15" cy="17" fill="#fffefb" r="3"></circle></symbol></defs></svg>
@@ -947,28 +986,45 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   const t=random(candidates);drawn.add(t.key);stateDraw[bucketKey]=(stateDraw[bucketKey]||0)+1;catDraw[t.scene.cat]=(catDraw[t.scene.cat]||0)+1;posDraw[t.focus]=(posDraw[t.focus]||0)+1;recent.push(t.scene.id);if(recent.length>10)recent.shift();return t;
  }
  function resetDraw(){drawn.clear();stateDraw={};catDraw={};posDraw={};recent=[];}
- let introAnimations=[],introTimer=0,introToken=0;
+ let introAnimations=[],introTimer=0,introToken=0,introState='judging';
+ function introLocked(){return !!current&&!answered&&introState!=='judging';}
  function stopSituationIntro(restore=false){
   introToken++;clearTimeout(introTimer);introTimer=0;
   for(const a of introAnimations)try{a.cancel();}catch(_){}introAnimations=[];
-  Q('.intro-runner',el.field).forEach(n=>n.remove());el.field.classList.remove('intro-playing');
+  Q('.intro-runner',el.field).forEach(n=>n.remove());el.field.classList.remove('intro-playing','intro-ready');
   if(restore&&current&&!answered)renderStage();
  }
  function introKeyframes(points){return points.map((p,i)=>({left:(p[0]/720*100)+'%',top:(p[1]/610*100)+'%',offset:points.length===1?1:i/(points.length-1)}));}
+ function finishSituationIntro(token){
+  if(token!==introToken||!current||answered)return;
+  clearTimeout(introTimer);introTimer=0;
+  for(const a of introAnimations)try{a.finish();}catch(_){}
+  introState='ready';el.field.classList.remove('intro-playing');el.field.classList.add('intro-ready');$('fieldTip').textContent='场面结束';
+  renderControls();
+ }
  function playSituationIntro(){
-  if(!current||answered)return;stopSituationIntro(false);const token=++introToken,s=current.scene;
-  if(reduceMotion.matches){renderStage();return;}
-  el.field.classList.add('intro-playing');el.targets.replaceChildren();$('fieldTip').textContent='场面回放';
+  if(!current||answered)return;stopSituationIntro(false);introState='playing';const token=++introToken,s=current.scene;
+  el.field.classList.add('intro-playing');el.field.classList.remove('intro-ready');el.targets.replaceChildren();$('fieldTip').textContent='场面回放';renderControls();
   const ballPoints=s.kind==='fly'?[s.origin,[(s.origin[0]+s.ball[0])/2,Math.max(35,Math.min(s.origin[1],s.ball[1])-90)],s.ball]:s.cat==='wild'?[s.origin,E.BASES.HOME.xy,s.ball]:[s.origin,s.ball];
-  place(el.ball,ballPoints[0]);introAnimations.push(el.ball.animate(introKeyframes(ballPoints),{duration:1250,easing:'ease-in-out',fill:'forwards'}));
   const routes=promptRunnerRoutes(s).slice(0,4);
-  routes.forEach((r,i)=>{const n=document.createElement('span');n.className='intro-runner';n.textContent=r.from==='HOME'?'BR':`R${['FIRST','SECOND','THIRD'].indexOf(r.from)+1}`;el.field.appendChild(n);place(n,r.points[0]);const pts=r.points.map((p,j)=>j===r.points.length-1?lerp(r.points[j-1],p,.72):p);introAnimations.push(n.animate(introKeyframes(pts),{duration:1450,delay:180+i*80,easing:'linear',fill:'forwards'}));});
-  introTimer=setTimeout(()=>{if(token!==introToken||!current||answered)return;for(const a of introAnimations)try{a.cancel();}catch(_){}introAnimations=[];Q('.intro-runner',el.field).forEach(n=>n.remove());el.field.classList.remove('intro-playing');renderStage();},1850);
+  if(reduceMotion.matches){
+   place(el.ball,ballPoints[ballPoints.length-1]);
+   routes.forEach((r,i)=>{const n=document.createElement('span');n.className='intro-runner';n.textContent=r.from==='HOME'?'BR':`R${['FIRST','SECOND','THIRD'].indexOf(r.from)+1}`;el.field.appendChild(n);const end=r.points.length>1?lerp(r.points[r.points.length-2],r.points[r.points.length-1],.72):r.points[0];place(n,end);});
+   introState='ready';el.field.classList.remove('intro-playing');el.field.classList.add('intro-ready');$('fieldTip').textContent='场面结束';renderControls();return;
+  }
+  place(el.ball,ballPoints[0]);introAnimations.push(el.ball.animate(introKeyframes(ballPoints),{duration:1250,easing:'ease-in-out',fill:'forwards'}));
+  routes.forEach((r,i)=>{const n=document.createElement('span');n.className='intro-runner';n.textContent=r.from==='HOME'?'BR':`R${['FIRST','SECOND','THIRD'].indexOf(r.from)+1}`;el.field.appendChild(n);place(n,r.points[0]);const pts=r.points.map((p,j)=>j===r.points.length-1&&j>0?lerp(r.points[j-1],p,.72):p);introAnimations.push(n.animate(introKeyframes(pts),{duration:1450,delay:180+i*80,easing:'linear',fill:'forwards'}));});
+  introTimer=setTimeout(()=>finishSituationIntro(token),1900);
+ }
+ function startJudgement(){
+  if(!current||answered||introState!=='ready')return;
+  stopSituationIntro(false);introState='judging';renderAll();
+  const t=el.field.querySelector('.target');if(t&&mobile())t.focus({preventScroll:true});
  }
  function loadTask(t){
   mobileResultPane='result';mobileResultRole=null;
   ['briefDialog','targetDialog','roleDialog','detailDialog'].forEach(id=>{if($(id).open)closeDialog(id);});
-  stopReplay();replay=null;cancelDrag();suppressClickUntil=0;current=t;answered=false;grades={};history=[];expanded=false;phase='move';plans={};
+  stopReplay();replay=null;cancelDrag();suppressClickUntil=0;current=t;answered=false;grades={};history=[];expanded=false;phase='move';plans={};introState=t?'playing':'judging';
   $('resultCard').hidden=true;$('playbackCard').hidden=true;
   if(!t){renderEmpty();return;}
   focus=t.focus;for(const p of roles())plans[p]={move:null,action:null,target:null};
@@ -1047,21 +1103,50 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  }
  function renderStage(){
   if(!current)return;
-  el.field.classList.toggle('targeting',!answered&&phase==='move');el.field.classList.toggle('throwing',!answered&&phase==='throw');el.field.classList.toggle('replaying',answered);
-  $('replayPaths').replaceChildren();$('runnerPaths').replaceChildren();incoming();renderRunners();createPlayers(visualPositions());renderTargets();renderPlans();place(el.ball,current.scene.ball);
-  $('fieldTip').textContent=answered?'REFERENCE / 参考答案示意':phase==='throw'?'THROWING / 点垒包或接应球员':'站位示意';
+  const locked=introLocked();
+  el.field.classList.toggle('targeting',!locked&&!answered&&phase==='move');el.field.classList.toggle('throwing',!locked&&!answered&&phase==='throw');el.field.classList.toggle('replaying',answered);
+  $('replayPaths').replaceChildren();$('runnerPaths').replaceChildren();incoming();renderRunners();createPlayers(visualPositions());if(!locked)renderTargets();else el.targets.replaceChildren();renderPlans();place(el.ball,current.scene.ball);
+  $('fieldTip').textContent=locked?(introState==='playing'?'场面回放':'场面结束'):answered?'REFERENCE / 参考答案示意':phase==='throw'?'THROWING / 点垒包或接应球员':'站位示意';
  }
  function snapHistory(){history.push({plans:clone(plans),focus,phase,expanded});if(history.length>40)history.shift();}
- function updateAnswer(changes,nextPhase){if(answered||!current)return;stopSituationIntro(false);snapHistory();plans[focus]={...currentAnswer(),...changes};phase=nextPhase;expanded=false;renderAll();}
+ function updateAnswer(changes,nextPhase){if(answered||!current||introLocked())return;stopSituationIntro(false);snapHistory();plans[focus]={...currentAnswer(),...changes};phase=nextPhase;expanded=false;renderAll();}
  function pickMove(k){if(answered||!current||!xy(k))return;updateAnswer({move:k},'action');}
  function pickAction(k){if(answered||!E.ACT[k])return;if(!currentAnswer().move){phase='move';renderAll();toast('先选择跑位目标。');return;}const prev=currentAnswer();updateAnswer({action:k,target:E.ACT[k].target&&prev.action===k?prev.target:null},E.ACT[k].target?'throw':'done');if(phase==='throw'&&mobile())revealField();}
  function pickThrow(k){if(answered||!currentAnswer().action||!E.ACT[currentAnswer().action].target)return;if(settings.mode==='team'&&k.startsWith('PLAYER_')&&!(plans[k.slice(7)]&&plans[k.slice(7)].move)){toast('先安排接应球员的跑位，或直接点目标垒包。');return;}updateAnswer({target:k},'done');}
- function selectRole(p){if(answered||!roles().includes(p))return;focus=p;expanded=false;const a=currentAnswer();phase=!a.move?'move':!a.action?'action':E.ACT[a.action].target&&!a.target?'throw':'done';renderAll();}
- function goPhase(p){if(answered)return;const a=currentAnswer();if(p!=='move'&&!a.move){toast('先选择这个位置的跑位。');p='move';}else if(p==='throw'&&!a.action){toast('先选择处理动作。');p='action';}else if(p==='throw'&&!E.ACT[a.action].target){toast('这个动作不需要追加传球。');p='done';}phase=p;expanded=false;renderAll();if((p==='move'||p==='throw')&&mobile())revealField();}
+ function selectRole(p){if(answered||introLocked()||!roles().includes(p))return;focus=p;expanded=false;const a=currentAnswer();phase=!a.move?'move':!a.action?'action':E.ACT[a.action].target&&!a.target?'throw':'done';renderAll();}
+ function goPhase(p){if(answered||introLocked())return;const a=currentAnswer();if(p!=='move'&&!a.move){toast('先选择这个位置的跑位。');p='move';}else if(p==='throw'&&!a.action){toast('先选择处理动作。');p='action';}else if(p==='throw'&&!E.ACT[a.action].target){toast('这个动作不需要追加传球。');p='done';}phase=p;expanded=false;renderAll();if((p==='move'||p==='throw')&&mobile())revealField();}
  function revealField(){fitMobileBoard();}
  function receiverLabel(k){const sc=current.scene;const found=sc.positions.find(p=>p!==focus&&(settings.mode==='team'?plans[p]&&plans[p].move:sc.roles[p].move)===k);return found?found+' 接应':'';}
+ function renderIntroPanel(){
+  if(!current)return;
+  const s=current.scene;
+  $('controlCard').classList.add('intro-preview');
+  $('mobileVerdictHead').hidden=true;
+  if(introState==='playing'){
+   el.choice.classList.remove('action-panel');
+   el.choice.innerHTML=`<div class="intro-control playing"><div class="intro-watching"><i></i><span>场面播放中</span></div></div>`;
+   $('fieldInstruction').textContent='先看场面';$('phaseNumber').textContent='▶';
+   return;
+  }
+  const facts=[shortOuts(s),BASE_NAMES[s.mask],$('ballKind').textContent];
+  el.choice.classList.remove('action-panel');
+  el.choice.innerHTML=`<div class="intro-control"><div class="intro-facts">${facts.map(x=>`<span>${esc(x)}</span>`).join('')}</div><h3>${esc(sceneTitle(s))}</h3><p class="intro-scene-text">${readingHTML(conciseCue(s))}</p><div class="intro-actions"><button class="btn btn-primary" id="introStartBtn" type="button">开始判断</button><button class="btn btn-blue" id="introReplayBtn" type="button">↻ 重播</button></div></div>`;
+  $('fieldInstruction').textContent='场面停在最后一帧';$('phaseNumber').textContent='✓';
+ }
+ function syncQuestionHeader(){
+  if(!current)return;
+  const s=current.scene;
+  if(introLocked()){
+   $('scenarioTitle').textContent=introState==='playing'?'先看球':'看完场面再判断';$('scenarioDesc').textContent='';
+  }else{
+   $('scenarioTitle').textContent=sceneTitle(s);setSceneReading('scenarioDesc',conciseCue(s));
+  }
+ }
  function renderControls(){
   if(!current)return;
+  syncQuestionHeader();
+  if(introLocked()){renderIntroPanel();renderMobileControls();return;}
+  $('controlCard').classList.remove('intro-preview');
   const a=currentAnswer(),done=roles().filter(p=>E.complete(plans[p])).length;
   $('positionBadge').textContent=focus;$('focusName').textContent=E.POS[focus];$('focusLabel').textContent=answered?'本题已提交':settings.mode==='team'?'当前安排的关键位置':'本题你的位置';$('roleCounter').textContent=settings.mode==='team'?`${done} / ${roles().length} 已安排`:'';
   $('roster').hidden=settings.mode!=='team';$('roster').innerHTML=roles().map(p=>`<button type="button" data-role="${p}" class="${p===focus?'active ':''}${E.complete(plans[p])?'done':''}" ${answered?'disabled':''} aria-label="安排${E.POS[p]}">${p}${E.complete(plans[p])?' ✓':''}</button>`).join('');
@@ -1094,9 +1179,9 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   $('dockLabel').textContent=answered?'已计分 · 重播不重复计分':settings.mode==='team'?`${done}/${roles().length} 个位置已安排`:'点选或拖动均可';
   renderMobileControls();
  }
- function undo(){if(answered||!history.length)return;const v=history.pop();plans=v.plans;focus=v.focus;phase=v.phase;expanded=v.expanded;renderAll();}
- function resetAnswer(){if(answered||!current)return;snapHistory();for(const p of roles())plans[p]={move:null,action:null,target:null};focus=current.focus;phase='move';expanded=false;renderAll();}
- function primaryAction(){if(!current)return;if(answered){nextQuestion();return;}const unfinished=roles().filter(p=>!E.complete(plans[p]));if(unfinished.length){if(E.complete(currentAnswer())){selectRole(unfinished[0]);if(mobile())revealField();}else toast('请先完成当前守备员的跑位、处理和必要传球。');return;}submit();}
+ function undo(){if(answered||introLocked()||!history.length)return;const v=history.pop();plans=v.plans;focus=v.focus;phase=v.phase;expanded=v.expanded;renderAll();}
+ function resetAnswer(){if(answered||!current||introLocked())return;snapHistory();for(const p of roles())plans[p]={move:null,action:null,target:null};focus=current.focus;phase='move';expanded=false;renderAll();}
+ function primaryAction(){if(!current||introLocked())return;if(answered){nextQuestion();return;}const unfinished=roles().filter(p=>!E.complete(plans[p]));if(unfinished.length){if(E.complete(currentAnswer())){selectRole(unfinished[0]);if(mobile())revealField();}else toast('请先完成当前守备员的跑位、处理和必要传球。');return;}submit();}
  function submit(){
   if(answered||!current)return false;stopSituationIntro(false);
   if(roles().some(p=>!E.complete(plans[p]))){toast('还有位置没有安排完。');return false;}
@@ -1151,7 +1236,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function coords(e){const b=el.field.getBoundingClientRect();return [(e.clientX-b.left)/b.width*720,(e.clientY-b.top)/b.height*610];}
  function nearestTarget(point,kind){const keys=kind==='throw'?throwTargets():moveTargets(),b=el.field.getBoundingClientRect(),candidates=keys.map(k=>({key:k,xy:xy(k),hidden:k.startsWith('CUT')||k.startsWith('BACK')}));if(kind==='throw'){const vp=visualPositions();for(const p of E.ORDER)if(p!==focus)candidates.push({key:'PLAYER_'+p,xy:vp[p],hidden:false});}let best=null,d=Infinity;for(const item of candidates){const distance=Math.hypot((item.xy[0]-point[0])*b.width/720,(item.xy[1]-point[1])*b.height/610);if(distance<d){best=item;d=distance;}}if(!best)return null;return d<=(best.hidden?52:31)?best:null;}
  function beginDrag(e){
-  const button=e.target.closest('.player');if(!button||answered||e.button!==0||!e.isPrimary)return;stopSituationIntro(false);
+  const button=e.target.closest('.player');if(!button||answered||introLocked()||e.button!==0||!e.isPrimary)return;stopSituationIntro(false);
   if(button.dataset.pos!==focus)return;
   if(!['move','throw'].includes(phase)){goPhase('move');return;}
   const kind=phase;
@@ -1171,9 +1256,9 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  }
  function cancelDrag(){if(!drag)return;try{if(drag.node.hasPointerCapture(drag.id))drag.node.releasePointerCapture(drag.id);}catch(_){}drag=null;}
  el.players.addEventListener('pointerdown',beginDrag);window.addEventListener('pointermove',moveDrag,{passive:false});window.addEventListener('pointerup',endDrag);window.addEventListener('pointercancel',endDrag);
- el.players.addEventListener('click',e=>{const b=e.target.closest('.player');if(!b||answered)return;const p=b.dataset.pos;if(p===focus&&Date.now()<suppressClickUntil)return;if(phase==='throw'&&p!==focus)pickThrow('PLAYER_'+p);else if(roles().includes(p)&&p!==focus)selectRole(p);else if(p===focus&&phase!=='move')goPhase('move');});
- el.targets.addEventListener('click',e=>{const b=e.target.closest('[data-zone]');if(!b||answered)return;if(phase==='move')pickMove(b.dataset.zone);else if(phase==='throw')pickThrow(b.dataset.zone);});
- el.field.addEventListener('click',e=>{if(answered||!['move','throw'].includes(phase)||e.target.closest('.player,.target'))return;const best=nearestTarget(coords(e),phase);if(!best||!best.hidden)return;if(phase==='move')pickMove(best.key);else pickThrow(best.key);});
+ el.players.addEventListener('click',e=>{const b=e.target.closest('.player');if(!b||answered||introLocked())return;const p=b.dataset.pos;if(p===focus&&Date.now()<suppressClickUntil)return;if(phase==='throw'&&p!==focus)pickThrow('PLAYER_'+p);else if(roles().includes(p)&&p!==focus)selectRole(p);else if(p===focus&&phase!=='move')goPhase('move');});
+ el.targets.addEventListener('click',e=>{const b=e.target.closest('[data-zone]');if(!b||answered||introLocked())return;if(phase==='move')pickMove(b.dataset.zone);else if(phase==='throw')pickThrow(b.dataset.zone);});
+ el.field.addEventListener('click',e=>{if(answered||introLocked()||!['move','throw'].includes(phase)||e.target.closest('.player,.target'))return;const best=nearestTarget(coords(e),phase);if(!best||!best.hidden)return;if(phase==='move')pickMove(best.key);else pickThrow(best.key);});
  // Reference replay. A fresh animation is created per submission and is
  // cancelled before navigating, changing filters, dragging, or hiding the tab.
  function stopReplay(){cancelAnimationFrame(raf);raf=0;playing=false;lastFrame=0;if($('playBtn'))$('playBtn').textContent=replay&&replay.t>=replay.total?'↻ 重播':'▶ 播放';syncMobileReplay();}
@@ -1250,7 +1335,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   $('positionStats').innerHTML=E.ORDER.map(p=>{const c=stats.positions[p]||{correct:0,total:0};return `<div class="pos-stat"><b>${p} · ${c.total?Math.round(c.correct/c.total*100)+'%':'—'}</b>${E.POS[p]}<br>${c.correct}/${c.total} 正确</div>`;}).join('');
  }
  $('progressBtn').addEventListener('click',()=>{renderProgress();showDialog('progressDialog');});$('clearStatsBtn').addEventListener('click',()=>{if(confirm('清空正确率、错题和局面覆盖记录？此操作无法撤销。')){stats=emptyStats();persist();renderStats();renderProgress();renderPool();toast('本地训练记录已清空。');}});
- el.choice.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='expandMovesBtn'){expanded=!expanded;renderControls();}else if(b.dataset.move)pickMove(b.dataset.move);else if(b.dataset.action)pickAction(b.dataset.action);else if(b.dataset.throw)pickThrow(b.dataset.throw);});
+ el.choice.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.id==='introStartBtn')startJudgement();else if(b.id==='introReplayBtn')playSituationIntro();else if(b.id==='expandMovesBtn'){expanded=!expanded;renderControls();}else if(b.dataset.move)pickMove(b.dataset.move);else if(b.dataset.action)pickAction(b.dataset.action);else if(b.dataset.throw)pickThrow(b.dataset.throw);});
  $('roster').addEventListener('click',e=>{const b=e.target.closest('[data-role]');if(b)selectRole(b.dataset.role);});Q('.step').forEach(b=>b.addEventListener('click',()=>goPhase(b.dataset.phase)));
  $('submitBtn').addEventListener('click',primaryAction);$('nextBtn').addEventListener('click',()=>{if(answered){if(mobile())openMobileDetails();else playReplay(true);}else nextQuestion();});$('undoBtn').addEventListener('click',undo);$('resetAnswerBtn').addEventListener('click',resetAnswer);
  window.addEventListener('resize',()=>{if(drag){cancelDrag();renderStage();}});
@@ -1320,6 +1405,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
   $('mobileUndoBtn').disabled=answered||!history.length;
   $('mobileRoleBtn').disabled=answered||settings.mode!=='team';$('mobileRoleBtn').setAttribute('aria-label',settings.mode==='team'?'切换守备员，当前'+E.POS[focus]:E.POS[focus]||'守备员');$('mobileRoleBtn').querySelector('span').textContent=settings.mode==='team'?'切换⌄':'';
   if(!mobile()||!current)return;
+  if(introLocked()){renderIntroPanel();return;}
   const a=currentAnswer(),done=roles().filter(p=>E.complete(plans[p])).length;
   const caption=(main,aside='')=>`<div class="m-caption"><span>${main}</span>${aside?`<b>${aside}</b>`:''}</div>`;
   const button=(kind,k,label=(kind==='action'?actName(k,true):zoneName(k)),cls='')=>`<button class="choice ${cls} ${(kind==='move'?a.move===k:kind==='action'?a.action===k:E.normalizeTarget(current.scene,a.target,plans)===k)?'active':''}" data-${kind}="${esc(k)}">${esc(label)}</button>`;
