@@ -227,6 +227,10 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
 .other-routes{margin-top:12px;border-top:1px solid var(--line);padding-top:7px}
 .other-routes summary{cursor:pointer;font-size:12px;color:var(--soft);padding:8px 0}
 .other-routes p{font-size:12px;line-height:1.6;margin:6px 0}
+
+/* v4.5 complete tactical move choices */
+.m-special-moves{display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 1px 3px;margin-top:4px}.m-special-moves::-webkit-scrollbar{display:none}.m-special-moves .choice{flex:0 0 auto;min-width:112px;min-height:42px;height:42px;padding:4px 9px;border-radius:12px;font-size:11px;line-height:1.2;white-space:normal;background:#eef7ff;border-style:dashed}.m-special-moves .choice.active{background:#fff0b7;border-style:solid}@media(max-width:370px){.m-special-moves .choice{min-width:104px;font-size:10.5px}}
+
 </style>
 </head>
 <body><svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg"><defs><symbol id="ui-ball" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M5 5c6 3 6 11 0 14M19 5c-6 3-6 11 0 14m-11-9 3-1m-2 5 3 1m7-5-3-1m2 5-3 1"></path></symbol><symbol id="ui-chart" viewbox="0 0 24 24"><path d="M4 4v16h17M8 15v-4m5 4V7m5 8v-6"></path></symbol><symbol id="ui-help" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 1 1 4 3c-1 .5-1 1-1 2m0 3h.01"></path></symbol><symbol id="ui-star" viewbox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9Z"></path></symbol><symbol id="ui-check" viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="m7 12 3 3 7-7"></path></symbol><symbol id="ui-play" viewbox="0 0 24 24"><path d="m8 4 12 8-12 8Z"></path></symbol><symbol id="ui-reset" viewbox="0 0 24 24"><path d="M4 10a8 8 0 1 1 1 7M3 4v6h6"></path></symbol><symbol id="ui-arrow" viewbox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"></path></symbol><symbol id="ui-home" viewbox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v11h12V9m-9 11v-7h6v7"></path></symbol><symbol id="ui-person" viewbox="0 0 24 24"><circle cx="12" cy="7" r="3"></circle><path d="M5 21v-3a7 7 0 0 1 14 0v3"></path></symbol><symbol id="ui-group" viewbox="0 0 24 24"><circle cx="8" cy="7" r="3"></circle><path d="M2 21v-3a6 6 0 0 1 12 0v3m2-17a3 3 0 0 1 0 6m2 4a6 6 0 0 1 4 6"></path></symbol><symbol id="ui-settings" viewbox="0 0 24 24"><path d="M4 7h16M4 17h16"></path><circle cx="9" cy="7" fill="#fffefb" r="3"></circle><circle cx="15" cy="17" fill="#fffefb" r="3"></circle></symbol></defs></svg>
@@ -1313,15 +1317,21 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function visibleMoveTargets(){return ['BALL','FIRST','SECOND','THIRD','HOME'];}
  function moveChoiceTargets(){
   const out=visibleMoveTargets().slice();
-  // Text choices can include cutoff responsibilities without drawing the hidden cutoff point on the field.
-  // Every trained position sees the same choices; the UI never names which fielder is the reference cutoff player.
-  if(current&&current.scene.zones.CUT)out.push('CUT');
-  if(current&&current.scene.zones.CUT2)out.push('CUT2');
+  // Keep special tactical positions off the field before the user chooses them,
+  // but expose every special move that exists in this scene as a text option.
+  // This guarantees that every reference/accepted answer can actually be selected.
+  if(current){
+   for(const k of Object.keys(current.scene.zones)){
+    if((k.startsWith('CUT')||k.startsWith('BACK'))&&!out.includes(k))out.push(k);
+   }
+  }
   return out;
  }
  function moveChoiceLabel(k){
   if(k==='CUT')return '出去打截';
   if(k==='CUT2')return '出去打第二截';
+  if(k==='BACK_BALL')return '接球人身后';
+  if(k.startsWith('BACK'))return zoneName(k);
   return zoneName(k);
  }
  function visibleThrowTargets(){return ['FIRST','SECOND','THIRD','HOME'];}
@@ -1629,7 +1639,7 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
  function openTargetList(kind){
   if(answered||!current)return;
   const throwMode=kind==='throw';$('targetTitle').textContent=throwMode?'选择传球目标':'选择跑位目标';
-  $('targetList').innerHTML=(throwMode?throwChoiceTargets():[...visibleMoveTargets(),'HOLD']).map(k=>`<button class="btn" ${throwMode?'data-mobile-throw':'data-mobile-move'}="${esc(k)}">${esc(zoneName(k))}</button>`).join('');
+  $('targetList').innerHTML=(throwMode?throwChoiceTargets():[...moveChoiceTargets(),'HOLD']).map(k=>`<button class="btn" ${throwMode?'data-mobile-throw':'data-mobile-move'}="${esc(k)}">${esc(throwMode?zoneName(k):(k==='HOLD'?'留在原位':moveChoiceLabel(k)))}</button>`).join('');
   showDialog('targetDialog');
  }
  function openRoleList(){
@@ -1686,8 +1696,8 @@ html.is-home .app{position:relative;display:block;inset:auto;width:auto;height:a
    return;
   }
   if(phase==='move'){
-   const keys=moveChoiceTargets();
-   el.choice.innerHTML=caption('01 跑位',settings.mode==='team'?`${done}/${roles().length} 已安排`:'选择你判断的跑位')+`<div class="m-grid two-rows">${keys.map(k=>button('move',k,moveChoiceLabel(k))).join('')}<button class="choice" data-move="HOLD">留在原位</button></div>`;
+   const all=moveChoiceTargets(),common=visibleMoveTargets(),special=all.filter(k=>!common.includes(k));
+   el.choice.innerHTML=caption('01 跑位',settings.mode==='team'?`${done}/${roles().length} 已安排`:'选择你判断的跑位')+`<div class="m-grid two-rows">${common.map(k=>button('move',k,moveChoiceLabel(k))).join('')}<button class="choice" data-move="HOLD">留在原位</button></div>${special.length?`<div class="m-special-moves" aria-label="打截和补位选项">${special.map(k=>button('move',k,moveChoiceLabel(k),'special-move')).join('')}</div>`:''}`;
   }else if(phase==='action'){
    el.choice.innerHTML=caption('02 处理')+`<div class="m-grid">${current.scene.actionOptions.map(k=>button('action',k,actName(k,true))).join('')}</div>`;
   }else if(phase==='throw'){
